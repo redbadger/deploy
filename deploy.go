@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	gh "github.com/redbadger/deploy/github"
 	"gopkg.in/go-playground/webhooks.v3"
 	"gopkg.in/go-playground/webhooks.v3/github"
 )
@@ -36,4 +37,6 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	pl := payload.(github.PullRequestPayload)
 
 	fmt.Printf("PR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
+	repo := gh.Repo{pl.Repository.Owner.Login, pl.Repository.Name, pl.PullRequest.Head.Sha}
+	fmt.Printf("Clone URL %s\n", gh.GetRepo(repo))
 }
