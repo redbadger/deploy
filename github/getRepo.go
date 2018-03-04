@@ -39,7 +39,7 @@ func GetRepo(org, name, ref string) (fs billy.Filesystem, err error) {
 	}
 
 	fs = memfs.New()
-	r, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
+	r, err := git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
 		URL: repo.GetCloneURL(),
 	})
 	if err != nil {
