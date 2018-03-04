@@ -5,8 +5,13 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
+	"gopkg.in/src-d/go-billy.v4"
+
+	"github.com/redbadger/deploy/fsWalker"
 	gh "github.com/redbadger/deploy/github"
 	"gopkg.in/go-playground/webhooks.v3"
 	"gopkg.in/go-playground/webhooks.v3/github"
@@ -33,6 +38,43 @@ func main() {
 	}
 }
 
+var patterns = []string{"*.yml", "*.yaml"}
+
+func visit(files *[]string) fsWalker.WalkFunc {
+	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
+		if err != nil {
+			fmt.Println(err) // can't walk here,
+			return nil       // but continue walking elsewhere
+		}
+		if info.IsDir() {
+			return nil // not a file.  ignore.
+		}
+		for _, pattern := range patterns {
+			matched, err := filepath.Match(pattern, info.Name())
+			if err != nil {
+				fmt.Println(err) // malformed pattern
+				return err       // this is fatal.
+			}
+			if matched {
+				f, err := fs.Open(path)
+				if err != nil {
+					log.Fatalf("Error opening file %v", err)
+				}
+				t, err := ioutil.ReadAll(f)
+				if err != nil {
+					log.Fatalf("Cannot read file %v", err)
+				}
+				ts := string(t)
+				if !strings.HasSuffix(ts, "\n") {
+					ts += "\n"
+				}
+				*files = append(*files, ts)
+			}
+		}
+		return nil
+	}
+}
+
 func handlePullRequest(payload interface{}, header webhooks.Header) {
 	fmt.Println("Handling PR")
 	pl := payload.(github.PullRequestPayload)
@@ -46,16 +88,10 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	if err != nil {
 		log.Fatalf("Error getting repo %v", err)
 	}
-	files, err := fs.ReadDir("app1")
-	for _, file := range files {
-		f, err := fs.Open("app1/" + file.Name())
-		if err != nil {
-			log.Fatalf("Cannot open file %v", err)
-		}
-		txt, err := ioutil.ReadAll(f)
-		if err != nil {
-			log.Fatalf("Cannot read file %v", err)
-		}
-		log.Println(string(txt))
+	var contents []string
+	err = fsWalker.Walk(fs, "app1", visit(&contents))
+	if err != nil {
+		log.Fatalf("Error walking filesystem %v", err)
 	}
+	fmt.Println(strings.Join(contents, "---\n"))
 }
