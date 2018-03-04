@@ -37,6 +37,9 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	pl := payload.(github.PullRequestPayload)
 
 	fmt.Printf("PR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
-	repo := gh.Repo{pl.Repository.Owner.Login, pl.Repository.Name, pl.PullRequest.Head.Sha}
-	fmt.Printf("Clone URL %s\n", gh.GetRepo(repo))
+	fmt.Printf("HEAD of checkout: %s\n", gh.GetRepo(
+		pl.Repository.Owner.Login,
+		pl.Repository.Name,
+		pl.PullRequest.Head.Sha,
+	))
 }
