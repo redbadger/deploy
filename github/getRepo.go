@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 
+	"gopkg.in/src-d/go-billy.v4"
+
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/google/go-github/github"
@@ -18,8 +20,8 @@ const (
 	tokenEnvVar = "PERSONAL_ACCESS_TOKEN"
 )
 
-// GetRepo gets repo
-func GetRepo(org, name, ref string) string {
+// GetRepo returns an in memory filesystem with commit checked out
+func GetRepo(org, name, ref string) (fs billy.Filesystem, err error) {
 	token, ok := os.LookupEnv(tokenEnvVar)
 	if ok == false {
 		log.Fatalf("Environment variable %s is not exported.", tokenEnvVar)
@@ -33,31 +35,26 @@ func GetRepo(org, name, ref string) string {
 
 	repo, _, err := client.Repositories.Get(context, org, name)
 	if err != nil {
-		log.Fatalf("Error getting repository information %v\n", err)
+		return
 	}
 
-	fs := memfs.New()
+	fs = memfs.New()
 	r, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
 		URL: repo.GetCloneURL(),
 	})
 	if err != nil {
-		log.Fatalf("Error cloning repository %v\n", err)
+		return
 	}
 
 	w, err := r.Worktree()
 	if err != nil {
-		log.Fatalf("Cannot get worktree %v\n", err)
+		return
 	}
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: plumbing.NewHash(ref),
 	})
 	if err != nil {
-		log.Fatalf("Cannot checkout hash %s: %v\n", ref, err)
+		return
 	}
-	realRef, err := r.Head()
-	if err != nil {
-		log.Fatalf("Cannot get head: %v\n", err)
-	}
-	return realRef.Hash().String()
-
+	return
 }
