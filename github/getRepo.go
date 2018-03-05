@@ -21,7 +21,7 @@ const (
 )
 
 // GetRepo returns an in memory filesystem with commit checked out
-func GetRepo(org, name, ref string) (fs billy.Filesystem, err error) {
+func GetRepo(apiURL, org, name, ref string) (fs billy.Filesystem, err error) {
 	token, ok := os.LookupEnv(tokenEnvVar)
 	if ok == false {
 		log.Fatalf("Environment variable %s is not exported.", tokenEnvVar)
@@ -31,7 +31,10 @@ func GetRepo(org, name, ref string) (fs billy.Filesystem, err error) {
 		&oauth2.Token{AccessToken: token},
 	)
 	tokenClient := oauth2.NewClient(context, tokenService)
-	client := github.NewClient(tokenClient)
+	client, err := github.NewEnterpriseClient(apiURL, apiURL, tokenClient)
+	if err != nil {
+		return
+	}
 
 	repo, _, err := client.Repositories.Get(context, org, name)
 	if err != nil {

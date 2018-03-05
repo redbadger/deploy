@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -80,7 +81,13 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	pl := payload.(github.PullRequestPayload)
 
 	fmt.Printf("PR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
+	baseEndpoint, err := url.Parse(pl.Repository.URL)
+	if err != nil {
+		log.Fatalf("Error parsing api URL %v", err)
+	}
+	baseEndpoint.Path = "/"
 	fs, err := gh.GetRepo(
+		baseEndpoint.String(),
 		pl.Repository.Owner.Login,
 		pl.Repository.Name,
 		pl.PullRequest.Head.Sha,
