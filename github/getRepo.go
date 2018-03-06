@@ -8,6 +8,7 @@ import (
 	"gopkg.in/src-d/go-billy.v4"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	gHttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
@@ -43,7 +44,8 @@ func GetRepo(apiURL, org, name, ref string) (fs billy.Filesystem, err error) {
 
 	fs = memfs.New()
 	r, err := git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
-		URL: repo.GetCloneURL(),
+		URL:  repo.GetCloneURL(),
+		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 	})
 	if err != nil {
 		return
