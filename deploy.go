@@ -14,6 +14,7 @@ import (
 
 	"github.com/redbadger/deploy/fsWalker"
 	gh "github.com/redbadger/deploy/github"
+	"github.com/redbadger/deploy/kubectl"
 	"gopkg.in/go-playground/webhooks.v3"
 	"gopkg.in/go-playground/webhooks.v3/github"
 )
@@ -107,6 +108,11 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 		if err != nil {
 			log.Fatalf("Error walking filesystem %v", err)
 		}
-		fmt.Println(strings.Join(contents, "---\n"))
+		if len(contents) > 0 {
+			err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
+			if err != nil {
+				log.Fatalf("Error applying manifests to the cluster\n%v\n", err)
+			}
+		}
 	}
 }
