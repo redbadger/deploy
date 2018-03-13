@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -26,7 +27,7 @@ const (
 func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
 	token, present := os.LookupEnv(tokenEnvVar)
 	if !present {
-		log.Fatalf("Environment variable %s is not exported.", tokenEnvVar)
+		log.Fatalf("Environment variable %s is not exported.\n", tokenEnvVar)
 	}
 	context := context.Background()
 	tokenService := oauth2.StaticTokenSource(
@@ -35,36 +36,43 @@ func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, c
 	tokenClient := oauth2.NewClient(context, tokenService)
 	client, err := github.NewEnterpriseClient(apiURL, apiURL, tokenClient)
 	if err != nil {
+		err = fmt.Errorf("Cannot create github client: %v", err)
 		return
 	}
 
 	repo, _, err := client.Repositories.Get(context, org, name)
 	if err != nil {
+		err = fmt.Errorf("Cannot get github repo: %v", err)
 		return
 	}
 
 	fs = memfs.New()
+	url := repo.GetCloneURL()
 	r, err := git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
-		URL:  repo.GetCloneURL(),
+		URL:  url,
 		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 	})
 	if err != nil {
+		err = fmt.Errorf("Cannot clone github repo (%s): %v", url, err)
 		return
 	}
 
 	changedDirs, err = GetChangedProjects(r, headRef, baseRef)
 	if err != nil {
+		err = fmt.Errorf("Error identifying changed top level directories: %v", err)
 		return
 	}
 
 	w, err := r.Worktree()
 	if err != nil {
+		err = fmt.Errorf("Error getting work tree: %v", err)
 		return
 	}
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: plumbing.NewHash(headRef),
 	})
 	if err != nil {
+		err = fmt.Errorf("Error checking out %s: %v", headRef, err)
 		return
 	}
 	return

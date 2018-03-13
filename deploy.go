@@ -28,7 +28,7 @@ const (
 func main() {
 	secret, present := os.LookupEnv(secretEnvVar)
 	if !present {
-		log.Fatalf("Environment variable %s is not exported.", secretEnvVar)
+		log.Fatalf("Environment variable %s is not exported.\n", secretEnvVar)
 	}
 
 	hook := github.New(&github.Config{Secret: secret})
@@ -36,7 +36,7 @@ func main() {
 
 	err := webhooks.Run(hook, ":"+strconv.Itoa(port), path)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatalln(fmt.Errorf("Cannot listen for webhook: %v\n", err))
 	}
 }
 
@@ -58,11 +58,11 @@ func visit(files *[]string) fsWalker.WalkFunc {
 			if matched {
 				f, err := fs.Open(path)
 				if err != nil {
-					log.Fatalf("Error opening file %v", err)
+					log.Fatalf("Error opening file %v\n", err)
 				}
 				t, err := ioutil.ReadAll(f)
 				if err != nil {
-					log.Fatalf("Cannot read file %v", err)
+					log.Fatalf("Cannot read file %v\n", err)
 				}
 				ts := string(t)
 				if !strings.HasSuffix(ts, "\n") {
@@ -76,13 +76,12 @@ func visit(files *[]string) fsWalker.WalkFunc {
 }
 
 func handlePullRequest(payload interface{}, header webhooks.Header) {
-	fmt.Println("Handling PR")
 	pl := payload.(github.PullRequestPayload)
 
-	fmt.Printf("PR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
+	log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
 	baseEndpoint, err := url.Parse(pl.Repository.URL)
 	if err != nil {
-		log.Fatalf("Error parsing api URL %v", err)
+		log.Fatalf("Error parsing api URL %v\n", err)
 	}
 	if baseEndpoint.Hostname() == "api.github.com" {
 		baseEndpoint.Path = ""
@@ -98,20 +97,20 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 		pl.PullRequest.Base.Sha,
 	)
 	if err != nil {
-		log.Fatalf("Error getting repo %v", err)
+		log.Fatalf("Error getting repo %v\n", err)
 	}
 
 	for _, dir := range changedDirs {
-		fmt.Printf("Walking %s\n", dir)
+		log.Printf("Walking %s\n", dir)
 		var contents []string
 		err = fsWalker.Walk(fs, dir, visit(&contents))
 		if err != nil {
-			log.Fatalf("Error walking filesystem %v", err)
+			log.Fatalf("Error walking filesystem %v\n", err)
 		}
 		if len(contents) > 0 {
 			err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
 			if err != nil {
-				log.Fatalf("Error applying manifests to the cluster\n%v\n", err)
+				log.Fatalf("Error applying manifests to the cluster: %v\n", err)
 			}
 		}
 	}

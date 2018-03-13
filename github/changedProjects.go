@@ -1,7 +1,7 @@
 package github
 
 import (
-	"log"
+	"fmt"
 	"strings"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -30,11 +30,13 @@ func getTree(repo *git.Repository, ref string) (tree *object.Tree, err error) {
 	hash := plumbing.NewHash(ref)
 	commit, err := repo.CommitObject(hash)
 	if err != nil {
-		log.Fatalf("Cannot get commit from hash %v: %v", hash, err)
+		err = fmt.Errorf("Cannot get commit from hash %v: %v", hash, err)
+		return
 	}
 	tree, err = commit.Tree()
 	if err != nil {
-		log.Fatalf("Cannot get tree from commit %v: %v", commit, err)
+		err = fmt.Errorf("Cannot get tree from commit %v: %v", commit, err)
+		return
 	}
 	return
 }
@@ -44,10 +46,12 @@ func getTree(repo *git.Repository, ref string) (tree *object.Tree, err error) {
 func GetChangedProjects(repo *git.Repository, headRef, baseRef string) (files []string, err error) {
 	headTree, err := getTree(repo, headRef)
 	if err != nil {
+		err = fmt.Errorf("Cannot get tree from commit %v: %v", headRef, err)
 		return
 	}
 	baseTree, err := getTree(repo, baseRef)
 	if err != nil {
+		err = fmt.Errorf("Cannot get tree from commit %v: %v", headRef, err)
 		return
 	}
 	diff, err := headTree.Diff(baseTree)
