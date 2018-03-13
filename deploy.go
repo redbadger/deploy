@@ -44,8 +44,7 @@ var patterns = []string{"*.yml", "*.yaml"}
 func visit(files *[]string) fsWalker.WalkFunc {
 	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Println(err) // can't walk here,
-			return nil       // but continue walking elsewhere
+			return nil // can't walk here, but continue walking elsewhere
 		}
 		if info.IsDir() {
 			return nil // not a file.  ignore.
@@ -53,8 +52,7 @@ func visit(files *[]string) fsWalker.WalkFunc {
 		for _, pattern := range patterns {
 			matched, err := filepath.Match(pattern, info.Name())
 			if err != nil {
-				fmt.Println(err) // malformed pattern
-				return err       // this is fatal.
+				return err // malformed pattern, this is fatal.
 			}
 			if matched {
 				f, err := fs.Open(path)
@@ -86,7 +84,7 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 		log.Fatalf("Error parsing api URL %v", err)
 	}
 	baseEndpoint.Path = "" // TODO: work out what this should be: "/api/v3" or ""
-	fs, err := gh.GetRepo(
+	fs, changedDirs, err := gh.GetRepo(
 		baseEndpoint.String(),
 		pl.Repository.Owner.Login,
 		pl.Repository.Name,
@@ -96,10 +94,14 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	if err != nil {
 		log.Fatalf("Error getting repo %v", err)
 	}
-	var contents []string
-	err = fsWalker.Walk(fs, "app1", visit(&contents))
-	if err != nil {
-		log.Fatalf("Error walking filesystem %v", err)
+
+	for _, dir := range changedDirs {
+		fmt.Printf("Walking %s\n", dir)
+		var contents []string
+		err = fsWalker.Walk(fs, dir, visit(&contents))
+		if err != nil {
+			log.Fatalf("Error walking filesystem %v", err)
+		}
+		fmt.Println(strings.Join(contents, "---\n"))
 	}
-	fmt.Println(strings.Join(contents, "---\n"))
 }

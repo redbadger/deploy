@@ -18,6 +18,14 @@ func appendIfMissing(slice []string, s string) []string {
 	return append(slice, s)
 }
 
+func getTopLevelDirName(path string) string {
+	const separator = "/"
+	if !strings.Contains(path, separator) {
+		return ""
+	}
+	return strings.Split(path, separator)[0]
+}
+
 func getTree(repo *git.Repository, ref string) (tree *object.Tree, err error) {
 	hash := plumbing.NewHash(ref)
 	commit, err := repo.CommitObject(hash)
@@ -44,7 +52,14 @@ func GetChangedProjects(repo *git.Repository, headRef, baseRef string) (files []
 	}
 	diff, err := headTree.Diff(baseTree)
 	for _, change := range diff {
-		files = appendIfMissing(files, strings.Split(change.To.Name, "/")[0])
+		name := change.To.Name
+		if name == "" {
+			name = change.From.Name
+		}
+		dir := getTopLevelDirName(name)
+		if dir != "" {
+			files = appendIfMissing(files, dir)
+		}
 	}
 	return
 }

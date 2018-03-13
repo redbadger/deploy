@@ -49,6 +49,7 @@ func walkTree(fs billy.Filesystem, n *Node, path string, f func(path string, n *
 		walkTree(fs, e, filepath.Join(path, e.name), f)
 	}
 }
+
 func makeTree(fs billy.Filesystem, t *testing.T) {
 	walkTree(fs, tree, tree.name, func(path string, n *Node) {
 		if n.entries == nil {

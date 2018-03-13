@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 
@@ -24,7 +23,7 @@ const (
 )
 
 // GetRepo returns an in memory filesystem with commit checked out
-func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, err error) {
+func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
 	token, ok := os.LookupEnv(tokenEnvVar)
 	if ok == false {
 		log.Fatalf("Environment variable %s is not exported.", tokenEnvVar)
@@ -53,11 +52,10 @@ func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, e
 		return
 	}
 
-	files, err := GetChangedProjects(r, headRef, baseRef)
+	changedDirs, err = GetChangedProjects(r, headRef, baseRef)
 	if err != nil {
 		return
 	}
-	fmt.Println(files)
 
 	w, err := r.Worktree()
 	if err != nil {
