@@ -26,8 +26,8 @@ const (
 )
 
 func main() {
-	secret, ok := os.LookupEnv(secretEnvVar)
-	if ok == false {
+	secret, present := os.LookupEnv(secretEnvVar)
+	if !present {
 		log.Fatalf("Environment variable %s is not exported.", secretEnvVar)
 	}
 

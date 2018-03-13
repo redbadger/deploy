@@ -24,8 +24,8 @@ const (
 
 // GetRepo returns an in memory filesystem with commit checked out
 func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
-	token, ok := os.LookupEnv(tokenEnvVar)
-	if ok == false {
+	token, present := os.LookupEnv(tokenEnvVar)
+	if !present {
 		log.Fatalf("Environment variable %s is not exported.", tokenEnvVar)
 	}
 	context := context.Background()
