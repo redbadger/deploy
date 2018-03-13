@@ -83,7 +83,12 @@ func handlePullRequest(payload interface{}, header webhooks.Header) {
 	if err != nil {
 		log.Fatalf("Error parsing api URL %v", err)
 	}
-	baseEndpoint.Path = "" // TODO: work out what this should be: "/api/v3" or ""
+	if baseEndpoint.Hostname() == "api.github.com" {
+		baseEndpoint.Path = ""
+	} else {
+		baseEndpoint.Path = "/api/v3"
+	}
+
 	fs, changedDirs, err := gh.GetRepo(
 		baseEndpoint.String(),
 		pl.Repository.Owner.Login,
