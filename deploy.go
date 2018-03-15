@@ -21,6 +21,7 @@ import (
 
 const (
 	secretEnvVar = "DEPLOY_SECRET"
+	tokenEnvVar  = "PERSONAL_ACCESS_TOKEN"
 	path         = "/webhooks"
 	port         = 3016
 )
@@ -31,12 +32,17 @@ func main() {
 		log.Fatalf("Environment variable %s is not exported.\n", secretEnvVar)
 	}
 
+	token, present := os.LookupEnv(tokenEnvVar)
+	if !present {
+		log.Fatalf("Environment variable %s is not exported.\n", tokenEnvVar)
+	}
+
 	hook := github.New(&github.Config{Secret: secret})
-	hook.RegisterEvents(handlePullRequest, github.PullRequestEvent)
+	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
 
 	err := webhooks.Run(hook, ":"+strconv.Itoa(port), path)
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Cannot listen for webhook: %v\n", err))
+		log.Fatalln(fmt.Errorf("cannot listen for webhook: %v", err))
 	}
 }
 
@@ -75,42 +81,45 @@ func visit(files *[]string) fsWalker.WalkFunc {
 	}
 }
 
-func handlePullRequest(payload interface{}, header webhooks.Header) {
-	pl := payload.(github.PullRequestPayload)
+func handlePullRequest(token string) func(interface{}, webhooks.Header) {
+	return func(payload interface{}, header webhooks.Header) {
+		pl := payload.(github.PullRequestPayload)
 
-	log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
-	baseEndpoint, err := url.Parse(pl.Repository.URL)
-	if err != nil {
-		log.Fatalf("Error parsing api URL %v\n", err)
-	}
-	if baseEndpoint.Hostname() == "api.github.com" {
-		baseEndpoint.Path = ""
-	} else {
-		baseEndpoint.Path = "/api/v3"
-	}
-
-	fs, changedDirs, err := gh.GetRepo(
-		baseEndpoint.String(),
-		pl.Repository.Owner.Login,
-		pl.Repository.Name,
-		pl.PullRequest.Head.Sha,
-		pl.PullRequest.Base.Sha,
-	)
-	if err != nil {
-		log.Fatalf("Error getting repo %v\n", err)
-	}
-
-	for _, dir := range changedDirs {
-		log.Printf("Walking %s\n", dir)
-		var contents []string
-		err = fsWalker.Walk(fs, dir, visit(&contents))
+		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
+		baseEndpoint, err := url.Parse(pl.Repository.URL)
 		if err != nil {
-			log.Fatalf("Error walking filesystem %v\n", err)
+			log.Fatalf("Error parsing api URL %v\n", err)
 		}
-		if len(contents) > 0 {
-			err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
+		if baseEndpoint.Hostname() == "api.github.com" {
+			baseEndpoint.Path = ""
+		} else {
+			baseEndpoint.Path = "/api/v3"
+		}
+
+		fs, changedDirs, err := gh.GetRepo(
+			baseEndpoint.String(),
+			pl.Repository.Owner.Login,
+			pl.Repository.Name,
+			token,
+			pl.PullRequest.Head.Sha,
+			pl.PullRequest.Base.Sha,
+		)
+		if err != nil {
+			log.Fatalf("Error getting repo %v\n", err)
+		}
+
+		for _, dir := range changedDirs {
+			log.Printf("Walking %s\n", dir)
+			var contents []string
+			err = fsWalker.Walk(fs, dir, visit(&contents))
 			if err != nil {
-				log.Fatalf("Error applying manifests to the cluster: %v\n", err)
+				log.Fatalf("Error walking filesystem %v\n", err)
+			}
+			if len(contents) > 0 {
+				err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
+				if err != nil {
+					log.Fatalf("Error applying manifests to the cluster: %v\n", err)
+				}
 			}
 		}
 	}

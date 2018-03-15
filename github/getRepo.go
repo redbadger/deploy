@@ -3,8 +3,6 @@ package github
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
@@ -19,16 +17,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 )
 
-const (
-	tokenEnvVar = "PERSONAL_ACCESS_TOKEN"
-)
-
 // GetRepo returns an in memory filesystem with commit checked out
-func GetRepo(apiURL, org, name, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
-	token, present := os.LookupEnv(tokenEnvVar)
-	if !present {
-		log.Fatalf("Environment variable %s is not exported.\n", tokenEnvVar)
-	}
+func GetRepo(apiURL, org, name, token, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
 	context := context.Background()
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
