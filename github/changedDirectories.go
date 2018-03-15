@@ -41,9 +41,9 @@ func getTree(repo *git.Repository, ref string) (tree *object.Tree, err error) {
 	return
 }
 
-// GetChangedProjects returns an array of unique top level directory names
+// GetChangedDirectories returns an array of unique top level directory names
 // in which there have been changes
-func GetChangedProjects(repo *git.Repository, headRef, baseRef string) (files []string, err error) {
+func GetChangedDirectories(repo *git.Repository, headRef, baseRef string) (directories []string, err error) {
 	headTree, err := getTree(repo, headRef)
 	if err != nil {
 		err = fmt.Errorf("Cannot get tree from commit %v: %v", headRef, err)
@@ -62,7 +62,7 @@ func GetChangedProjects(repo *git.Repository, headRef, baseRef string) (files []
 		}
 		dir := getTopLevelDirName(name)
 		if dir != "" {
-			files = appendIfMissing(files, dir)
+			directories = appendIfMissing(directories, dir)
 		}
 	}
 	return

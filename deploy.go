@@ -124,7 +124,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			return
 		}
 
-		changedDirs, err := gh.GetChangedProjects(r, pr.Head.Sha,
+		changedDirs, err := gh.GetChangedDirectories(r, pr.Head.Sha,
 			pr.Base.Sha)
 		if err != nil {
 			err = fmt.Errorf("Error identifying changed top level directories: %v", err)
