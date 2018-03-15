@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"gopkg.in/src-d/go-git.v4/plumbing"
-
-	"gopkg.in/src-d/go-billy.v4"
-
 	gHttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 
 	"github.com/google/go-github/github"
@@ -17,8 +13,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 )
 
-// GetRepo returns an in memory filesystem with commit checked out
-func GetRepo(apiURL, org, name, token, headRef, baseRef string) (r *git.Repository, fs billy.Filesystem, err error) {
+// GetRepo returns a git Repository cloned into a new in-memory filesystem
+func GetRepo(apiURL, org, name, token, headRef, baseRef string) (r *git.Repository, err error) {
 	context := context.Background()
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -36,7 +32,7 @@ func GetRepo(apiURL, org, name, token, headRef, baseRef string) (r *git.Reposito
 		return
 	}
 
-	fs = memfs.New()
+	fs := memfs.New()
 	url := repo.GetCloneURL()
 	r, err = git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
 		URL:  url,
@@ -47,17 +43,5 @@ func GetRepo(apiURL, org, name, token, headRef, baseRef string) (r *git.Reposito
 		return
 	}
 
-	w, err := r.Worktree()
-	if err != nil {
-		err = fmt.Errorf("Error getting work tree: %v", err)
-		return
-	}
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(headRef),
-	})
-	if err != nil {
-		err = fmt.Errorf("Error checking out %s: %v", headRef, err)
-		return
-	}
 	return
 }

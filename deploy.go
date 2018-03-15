@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"gopkg.in/src-d/go-billy.v4"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/redbadger/deploy/fsWalker"
 	gh "github.com/redbadger/deploy/github"
@@ -84,6 +86,7 @@ func visit(files *[]string) fsWalker.WalkFunc {
 func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 	return func(payload interface{}, header webhooks.Header) {
 		pl := payload.(github.PullRequestPayload)
+		pr := pl.PullRequest
 
 		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
 		baseEndpoint, err := url.Parse(pl.Repository.URL)
@@ -96,20 +99,33 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			baseEndpoint.Path = "/api/v3"
 		}
 
-		r, fs, err := gh.GetRepo(
+		r, err := gh.GetRepo(
 			baseEndpoint.String(),
 			pl.Repository.Owner.Login,
 			pl.Repository.Name,
 			token,
-			pl.PullRequest.Head.Sha,
-			pl.PullRequest.Base.Sha,
+			pr.Head.Sha,
+			pr.Base.Sha,
 		)
 		if err != nil {
 			log.Fatalf("Error getting repo %v\n", err)
 		}
 
-		changedDirs, err := gh.GetChangedProjects(r, pl.PullRequest.Head.Sha,
-			pl.PullRequest.Base.Sha)
+		w, err := r.Worktree()
+		if err != nil {
+			err = fmt.Errorf("Error getting work tree: %v", err)
+			return
+		}
+		err = w.Checkout(&git.CheckoutOptions{
+			Hash: plumbing.NewHash(pr.Head.Sha),
+		})
+		if err != nil {
+			err = fmt.Errorf("Error checking out %s: %v", pr.Head.Sha, err)
+			return
+		}
+
+		changedDirs, err := gh.GetChangedProjects(r, pr.Head.Sha,
+			pr.Base.Sha)
 		if err != nil {
 			err = fmt.Errorf("Error identifying changed top level directories: %v", err)
 			return
@@ -118,7 +134,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		for _, dir := range changedDirs {
 			log.Printf("Walking %s\n", dir)
 			var contents []string
-			err = fsWalker.Walk(fs, dir, visit(&contents))
+			err = fsWalker.Walk(w.Filesystem, dir, visit(&contents))
 			if err != nil {
 				log.Fatalf("Error walking filesystem %v\n", err)
 			}
