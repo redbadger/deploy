@@ -96,7 +96,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			baseEndpoint.Path = "/api/v3"
 		}
 
-		fs, changedDirs, err := gh.GetRepo(
+		r, fs, err := gh.GetRepo(
 			baseEndpoint.String(),
 			pl.Repository.Owner.Login,
 			pl.Repository.Name,
@@ -106,6 +106,13 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		)
 		if err != nil {
 			log.Fatalf("Error getting repo %v\n", err)
+		}
+
+		changedDirs, err := gh.GetChangedProjects(r, pl.PullRequest.Head.Sha,
+			pl.PullRequest.Base.Sha)
+		if err != nil {
+			err = fmt.Errorf("Error identifying changed top level directories: %v", err)
+			return
 		}
 
 		for _, dir := range changedDirs {

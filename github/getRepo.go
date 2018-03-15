@@ -18,7 +18,7 @@ import (
 )
 
 // GetRepo returns an in memory filesystem with commit checked out
-func GetRepo(apiURL, org, name, token, headRef, baseRef string) (fs billy.Filesystem, changedDirs []string, err error) {
+func GetRepo(apiURL, org, name, token, headRef, baseRef string) (r *git.Repository, fs billy.Filesystem, err error) {
 	context := context.Background()
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -38,18 +38,12 @@ func GetRepo(apiURL, org, name, token, headRef, baseRef string) (fs billy.Filesy
 
 	fs = memfs.New()
 	url := repo.GetCloneURL()
-	r, err := git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
+	r, err = git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
 		URL:  url,
 		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 	})
 	if err != nil {
 		err = fmt.Errorf("Cannot clone github repo (%s): %v", url, err)
-		return
-	}
-
-	changedDirs, err = GetChangedProjects(r, headRef, baseRef)
-	if err != nil {
-		err = fmt.Errorf("Error identifying changed top level directories: %v", err)
 		return
 	}
 
