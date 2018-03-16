@@ -5,13 +5,9 @@ import (
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/redbadger/deploy/constants"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-)
-
-const (
-	// Version is the application version reported by `deploy version` and `deploy --version`
-	Version = "0.1"
 )
 
 var cfgFile string
@@ -25,7 +21,7 @@ var rootCmd = &cobra.Command{
 	1. as an agent (deploy agent) that runs in Kubernetes and deploys application configuration contained in a PR
 	2. as a cli command (usually run by CI/CD pipeline)
 	`,
-	Version: Version,
+	Version: constants.Version,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -69,6 +65,8 @@ func initConfig() {
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
+	viper.BindEnv(constants.SecretEnvVar)
+	viper.BindEnv(constants.TokenEnvVar)
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

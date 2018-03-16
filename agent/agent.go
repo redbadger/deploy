@@ -9,10 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/viper"
+
 	"gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
+	"github.com/redbadger/deploy/constants"
 	"github.com/redbadger/deploy/fsWalker"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
@@ -21,23 +24,21 @@ import (
 )
 
 const (
-	secretEnvVar = "DEPLOY_SECRET"
-	tokenEnvVar  = "PERSONAL_ACCESS_TOKEN"
-	path         = "/webhooks"
-	port         = 3016
+	path = "/webhooks"
+	port = 3016
 )
 
 // Agent runs deploy as a bot
 func Agent() {
-	secret, present := os.LookupEnv(secretEnvVar)
-	if !present {
-		log.Fatalf("environment variable %s is not exported.\n", secretEnvVar)
+	if !viper.IsSet(constants.SecretEnvVar) {
+		log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
+	}
+	if !viper.IsSet(constants.TokenEnvVar) {
+		log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
 	}
 
-	token, present := os.LookupEnv(tokenEnvVar)
-	if !present {
-		log.Fatalf("environment variable %s is not exported.\n", tokenEnvVar)
-	}
+	secret := viper.GetString(constants.SecretEnvVar)
+	token := viper.GetString(constants.TokenEnvVar)
 
 	hook := github.New(&github.Config{Secret: secret})
 	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
