@@ -18,24 +18,27 @@ TODO:
 
 Note: we can't currently use [`kubecfg`](https://github.com/ksonnet/kubecfg) as it stands, because it doesn't support accepting manifests from `stdin` (and as there are no file extensions to look at, it wouldn't know whether they were `yaml`, `json` or `jsonnet` anyway). We could raise a PR to add this functionality, or use it as a library. Jury is still out.
 
-To install:
+To setup:
 
 ```bash
 go get github.com/redbadger/deploy
+
+export PERSONAL_ACCESS_TOKEN=<personal access token>
+export DEPLOY_SECRET=<webhook secret>
+deploy help
+deploy help agent
 ```
 
 To run:
 
 ```bash
-export PERSONAL_ACCESS_TOKEN=<personal access token>
-export DEPLOY_SECRET=<webhook secret>
-deploy
+deploy agent
 ```
 
 Typical output:
 
 ```
-> deploy
+> deploy agent
 2018/03/13 15:52:21 INFO: Listening on addr: :3016 path: /webhooks
 2018/03/13 15:52:40 INFO: Webhook received
 2018/03/13 15:52:40 INFO: Parsing Payload...
