@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/redbadger/deploy/agent"
 	"github.com/spf13/cobra"
 )
@@ -18,7 +20,15 @@ var agentCmd = &cobra.Command{
 	6.  applies the manifests to a Kubernetes cluster using kubctl.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		agent.Agent()
+		port, err := cmd.Flags().GetUint16("port")
+		if err != nil {
+			fmt.Println("Must specifiy port")
+		}
+		path, err := cmd.Flags().GetString("path")
+		if err != nil {
+			fmt.Println("Must specifiy path")
+		}
+		agent.Agent(port, path)
 	},
 }
 
@@ -33,5 +43,6 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// agentCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	agentCmd.Flags().Uint16P("port", "p", 3016, "Port for webhook listener")
+	agentCmd.Flags().String("path", "/webhooks", "Path for webhook url")
 }

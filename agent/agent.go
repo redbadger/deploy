@@ -23,13 +23,8 @@ import (
 	"gopkg.in/go-playground/webhooks.v3/github"
 )
 
-const (
-	path = "/webhooks"
-	port = 3016
-)
-
 // Agent runs deploy as a bot
-func Agent() {
+func Agent(port uint16, path string) {
 	if !viper.IsSet(constants.SecretEnvVar) {
 		log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
 	}
@@ -43,7 +38,7 @@ func Agent() {
 	hook := github.New(&github.Config{Secret: secret})
 	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
 
-	err := webhooks.Run(hook, ":"+strconv.Itoa(port), path)
+	err := webhooks.Run(hook, ":"+strconv.FormatUint(uint64(port), 10), path)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("cannot listen for webhook: %v", err))
 	}
