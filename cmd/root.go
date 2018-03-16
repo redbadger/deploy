@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	// Version is the application version reported by `deploy version` and `deploy --version`
+	Version = "0.1"
+)
+
 var cfgFile string
 
 var rootCmd = &cobra.Command{
@@ -20,6 +25,7 @@ var rootCmd = &cobra.Command{
 	1. as an agent (deploy agent) that runs in Kubernetes and deploys application configuration contained in a PR
 	2. as a cli command (usually run by CI/CD pipeline)
 	`,
+	Version: Version,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
