@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
+	"github.com/google/go-github/github"
 	"github.com/redbadger/deploy/copy"
 	gh "github.com/redbadger/deploy/github"
 	git "gopkg.in/src-d/go-git.v4"
@@ -17,6 +19,7 @@ const (
 	githubTokenEnvVar = "GITHUB_TOKEN"
 	projectNameEnvVar = "PROJECT_NAME"
 	apiURL            = "https://api.github.com/"
+	cloneURL          = "https://github.com/org/repo.git"
 	org               = "org"
 	repoName          = "repo"
 	stacksDir         = "stacks"
@@ -34,7 +37,7 @@ func main() {
 	}
 
 	// Create in-mem FS w/ cloned deployments repo
-	r, err := gh.GetRepo(apiURL, org, repoName, githubToken, "master", "master")
+	r, err := gh.GetRepo(cloneURL, org, repoName, githubToken, "master", "master")
 	if err != nil {
 		log.Fatalf("Could not clone repo! %v", err)
 	}
@@ -106,4 +109,22 @@ func main() {
 		log.Printf("Error pushing: %v", err)
 	}
 	// Raise PR ["deployments" repo] with requested changes
+	client, err := gh.NewClient(apiURL, githubToken)
+
+	title := "New PR"
+	head := "newdeployment"
+	base := "master"
+	body := "# Hello"
+
+	pr, _, err := client.PullRequests.Create(context.Background(), "org", "repo", &github.NewPullRequest{
+		Title: &title,
+		Head:  &head,
+		Base:  &base,
+		Body:  &body,
+	})
+	if err != nil {
+		log.Printf("Error creating PR: %v", err)
+	} else {
+		log.Printf("PR obj: %v", pr)
+	}
 }

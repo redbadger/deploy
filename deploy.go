@@ -30,12 +30,12 @@ const (
 func main() {
 	secret, present := os.LookupEnv(secretEnvVar)
 	if !present {
-		log.Fatalf("Environment variable %s is not exported.\n", secretEnvVar)
+		log.Fatalf("environment variable %s is not exported.\n", secretEnvVar)
 	}
 
 	token, present := os.LookupEnv(tokenEnvVar)
 	if !present {
-		log.Fatalf("Environment variable %s is not exported.\n", tokenEnvVar)
+		log.Fatalf("environment variable %s is not exported.\n", tokenEnvVar)
 	}
 
 	hook := github.New(&github.Config{Secret: secret})
@@ -65,11 +65,11 @@ func visit(files *[]string) fsWalker.WalkFunc {
 			if matched {
 				f, err := fs.Open(path)
 				if err != nil {
-					log.Fatalf("Error opening file %v\n", err)
+					log.Fatalf("error opening file %v\n", err)
 				}
 				t, err := ioutil.ReadAll(f)
 				if err != nil {
-					log.Fatalf("Cannot read file %v\n", err)
+					log.Fatalf("cannot read file %v\n", err)
 				}
 				ts := string(t)
 				if !strings.HasSuffix(ts, "\n") {
@@ -98,26 +98,26 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			pr.Base.Sha,
 		)
 		if err != nil {
-			log.Fatalf("Error getting repo %v\n", err)
+			log.Fatalf("error getting repo %v\n", err)
 		}
 
 		w, err := r.Worktree()
 		if err != nil {
-			err = fmt.Errorf("Error getting work tree: %v", err)
+			err = fmt.Errorf("error getting work tree: %v", err)
 			return
 		}
 		err = w.Checkout(&git.CheckoutOptions{
 			Hash: plumbing.NewHash(pr.Head.Sha),
 		})
 		if err != nil {
-			err = fmt.Errorf("Error checking out %s: %v", pr.Head.Sha, err)
+			err = fmt.Errorf("error checking out %s: %v", pr.Head.Sha, err)
 			return
 		}
 
 		changedDirs, err := gh.GetChangedDirectories(r, pr.Head.Sha,
 			pr.Base.Sha)
 		if err != nil {
-			err = fmt.Errorf("Error identifying changed top level directories: %v", err)
+			err = fmt.Errorf("error identifying changed top level directories: %v", err)
 			return
 		}
 
@@ -126,12 +126,12 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			var contents []string
 			err = fsWalker.Walk(w.Filesystem, dir, visit(&contents))
 			if err != nil {
-				log.Fatalf("Error walking filesystem %v\n", err)
+				log.Fatalf("error walking filesystem %v\n", err)
 			}
 			if len(contents) > 0 {
 				err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
 				if err != nil {
-					log.Fatalf("Error applying manifests to the cluster: %v\n", err)
+					log.Fatalf("error applying manifests to the cluster: %v\n", err)
 				}
 			}
 		}

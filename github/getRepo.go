@@ -14,8 +14,7 @@ import (
 // GetRepo returns a git Repository cloned into a new in-memory filesystem
 func GetRepo(cloneURL, org, name, token, headRef, baseRef string) (r *git.Repository, err error) {
 	context := context.Background()
-	fs := memfs.New()
-	r, err = git.CloneContext(context, memory.NewStorage(), fs, &git.CloneOptions{
+	r, err = git.CloneContext(context, memory.NewStorage(), memfs.New(), &git.CloneOptions{
 		URL:  cloneURL,
 		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 	})

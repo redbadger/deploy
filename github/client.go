@@ -8,7 +8,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// NewClient creates a new github client
+// NewClient creates a new github client for the apiURL,
+// authenticated with the supplied token
 func NewClient(apiURL, token string) (client *github.Client, err error) {
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -17,8 +18,9 @@ func NewClient(apiURL, token string) (client *github.Client, err error) {
 
 	client, err = github.NewEnterpriseClient(apiURL, apiURL, tokenClient)
 	if err != nil {
-		err = fmt.Errorf("Cannot create github client: %v", err)
+		err = fmt.Errorf("cannot create github client: %v", err)
 		return
 	}
+
 	return
 }
