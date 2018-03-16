@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"fmt"
@@ -27,7 +27,8 @@ const (
 	port         = 3016
 )
 
-func main() {
+// Agent runs deploy as a bot
+func Agent() {
 	secret, present := os.LookupEnv(secretEnvVar)
 	if !present {
 		log.Fatalf("environment variable %s is not exported.\n", secretEnvVar)
