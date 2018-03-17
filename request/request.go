@@ -98,7 +98,6 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	// Push branch to remote
 	err = r.Push(&git.PushOptions{
 		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
-		// RefSpecs: []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
 	})
 	if err != nil {
 		log.Printf("error pushing: %v", err)
@@ -106,12 +105,12 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	// Raise PR ["deployments" repo] with requested changes
 	client, err := gh.NewClient(apiURL, token)
 
-	title := "New PR"
+	title := project + " deployment request"
 	head := "newdeployment"
 	base := "master"
 	body := "# Hello"
 
-	pr, _, err := client.PullRequests.Create(context.Background(), "org", "repo", &github.NewPullRequest{
+	pr, _, err := client.PullRequests.Create(context.Background(), org, repo, &github.NewPullRequest{
 		Title: &title,
 		Head:  &head,
 		Base:  &base,
@@ -120,6 +119,6 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	if err != nil {
 		log.Printf("Error creating PR: %v", err)
 	} else {
-		log.Printf("PR obj: %v", pr)
+		log.Printf("Pull request #%d raised!", *pr.Number)
 	}
 }
