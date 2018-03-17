@@ -28,7 +28,7 @@ TODO:
 
 Note: we can't currently use [`kubecfg`](https://github.com/ksonnet/kubecfg) as it stands, because it doesn't support accepting manifests from `stdin` (and as there are no file extensions to look at, it wouldn't know whether they were `yaml`, `json` or `jsonnet` anyway). We could raise a PR to add this functionality, or use it as a library. Jury is still out.
 
-To setup:
+## To setup:
 
 ```bash
 go get github.com/redbadger/deploy
@@ -40,7 +40,9 @@ deploy help agent
 deploy help request
 ```
 
-Typical output:
+## To run:
+
+`deploy agent` runs on the k8s cluster:
 
 ```
 > deploy agent
@@ -55,4 +57,17 @@ deployment "redis" configured
 service "redis" unchanged
 service "guestbook-ui" unchanged
 deployment "guestbook-ui" unchanged
+```
+
+`deploy request` runs in the CD pipeline, but you can test from the root directory of this repo. Modify the config in `/example/guestbook` and then:
+
+```
+> deploy request --org=redbadger --repo=cluster-local --stacksDir=example --project=guestbook
+2018/03/17 13:50:22 copying from example/guestbook to /guestbook
+2018/03/17 13:50:22 commit obj: commit cfb3da3c0b28f4bb731a13689ed0f994ba24b340
+Author: Robot <robot>
+Date:   Sat Mar 17 13:50:22 2018 +0000
+
+    Commit message!
+2018/03/17 13:50:26 Pull request #1 raised!
 ```
