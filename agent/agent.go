@@ -9,13 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/viper"
-
 	"gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
-	"github.com/redbadger/deploy/constants"
 	"github.com/redbadger/deploy/fsWalker"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
@@ -24,17 +21,7 @@ import (
 )
 
 // Agent runs deploy as a bot
-func Agent(port uint16, path string) {
-	if !viper.IsSet(constants.SecretEnvVar) {
-		log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
-	}
-	if !viper.IsSet(constants.TokenEnvVar) {
-		log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
-	}
-
-	secret := viper.GetString(constants.SecretEnvVar)
-	token := viper.GetString(constants.TokenEnvVar)
-
+func Agent(port uint16, path, token, secret string) {
 	hook := github.New(&github.Config{Secret: secret})
 	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
 

@@ -1,10 +1,12 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/redbadger/deploy/agent"
+	"github.com/redbadger/deploy/constants"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // agentCmd represents the agent command
@@ -22,27 +24,29 @@ var agentCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		port, err := cmd.Flags().GetUint16("port")
 		if err != nil {
-			fmt.Println("Must specifiy port")
+			log.Fatalf("Must specifiy port: %v", err)
 		}
 		path, err := cmd.Flags().GetString("path")
 		if err != nil {
-			fmt.Println("Must specifiy path")
+			log.Fatalf("Must specifiy path: %v", err)
 		}
-		agent.Agent(port, path)
+
+		if !viper.IsSet(constants.SecretEnvVar) {
+			log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
+		}
+		if !viper.IsSet(constants.TokenEnvVar) {
+			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
+		}
+
+		secret := viper.GetString(constants.SecretEnvVar)
+		token := viper.GetString(constants.TokenEnvVar)
+
+		agent.Agent(port, path, token, secret)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(agentCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// agentCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
 	agentCmd.Flags().Uint16P("port", "p", 3016, "Port for webhook listener")
 	agentCmd.Flags().String("path", "/webhooks", "Path for webhook url")
 }

@@ -1,9 +1,8 @@
-package main
+package request
 
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
 	"github.com/google/go-github/github"
@@ -15,29 +14,10 @@ import (
 	gHttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 )
 
-const (
-	githubTokenEnvVar = "GITHUB_TOKEN"
-	projectNameEnvVar = "PROJECT_NAME"
-	apiURL            = "https://api.github.com/"
-	cloneURL          = "https://github.com/org/repo.git"
-	org               = "org"
-	repoName          = "repo"
-	stacksDir         = "stacks"
-)
-
-func main() {
-	//  TODO: extract the right variables from the environment
-	githubToken, present := os.LookupEnv(githubTokenEnvVar)
-	if !present {
-		log.Fatalf("Environment variable %s is not exported.\n", githubTokenEnvVar)
-	}
-	projectName, present := os.LookupEnv(projectNameEnvVar)
-	if !present {
-		log.Fatalf("Environment variable %s is not exported.\n", projectNameEnvVar)
-	}
-
+// Request raises a PR against the deploy repo with the configuration to be deployed
+func Request(token, project, apiURL, cloneURL, org, repo, stacksDir string) {
 	// Create in-mem FS w/ cloned deployments repo
-	r, err := gh.GetRepo(cloneURL, org, repoName, githubToken, "master", "master")
+	r, err := gh.GetRepo(cloneURL, org, repo, token, "master", "master")
 	if err != nil {
 		log.Fatalf("Could not clone repo! %v", err)
 	}
@@ -61,9 +41,9 @@ func main() {
 		Hash: ref.Hash(),
 	})
 
-	sourceDir := stacksDir + "/" + projectName
+	sourceDir := stacksDir + "/" + project
 
-	err = copy.Copy(sourceDir, "/"+projectName, w.Filesystem)
+	err = copy.Copy(sourceDir, "/"+project, w.Filesystem)
 	if err != nil {
 		log.Fatalf("Could not copy files in to in-mem FS! %v", err)
 	}
@@ -102,14 +82,14 @@ func main() {
 
 	// Push branch to remote
 	err = r.Push(&git.PushOptions{
-		Auth: &gHttp.BasicAuth{Username: "none", Password: githubToken},
+		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 		// RefSpecs: []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
 	})
 	if err != nil {
 		log.Printf("Error pushing: %v", err)
 	}
 	// Raise PR ["deployments" repo] with requested changes
-	client, err := gh.NewClient(apiURL, githubToken)
+	client, err := gh.NewClient(apiURL, token)
 
 	title := "New PR"
 	head := "newdeployment"
