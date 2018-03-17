@@ -9,7 +9,7 @@ import (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Shows version number of the deploy command",
+	Short: "Show the version of the deploy command",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("deploy version %s\n", constants.Version)
 	},

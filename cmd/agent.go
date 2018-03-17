@@ -9,17 +9,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// agentCmd represents the agent command
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Run deploy in agent mode",
 	Long: `
-	1.  watches for PR updates on a webhook
-	2.  clones the repo to an in-memory filesystem
-	3.  checks out the commit SHA
-	4.  walks down any top-level directories that contain changes
-	5.  gathers yaml files (however they are nested)
-	6.  applies the manifests to a Kubernetes cluster using kubctl.
+Run deploy in agent mode:
+
+1.  watches for PR updates on a webhook
+2.  clones the repo to an in-memory filesystem
+3.  checks out the commit SHA
+4.  walks down any top-level directories that contain changes
+5.  gathers yaml files (however they are nested)
+6.  applies the manifests to a Kubernetes cluster using kubctl.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		port, err := cmd.Flags().GetUint16("port")

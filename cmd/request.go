@@ -11,11 +11,13 @@ import (
 
 var requestCmd = &cobra.Command{
 	Use:   "request",
-	Short: "request raises a PR against the deploy repo with the configuration to be deployed",
+	Short: "Raise a PR against the cluster repo with the configuration to be deployed",
 	Long: `
-	1. checks out the cluster repo specified
-	2. copies the specified manifests into a new branch
-	3. commits, pushes and raises a PR requesting deployment
+Raise a PR against the cluster repo with the configuration to be deployed:
+
+1. checks out the cluster repo specified
+2. copies the specified manifests into a new branch
+3. commits, pushes and raises a PR requesting deployment
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.TokenEnvVar) {

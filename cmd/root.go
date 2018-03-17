@@ -16,10 +16,13 @@ var rootCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy to Kubernetes through a cluster repository",
 	Long: `
-	Deploy runs in two modes:
+Deploy runs in two modes:
 
-	1. as an agent (deploy agent) that runs in Kubernetes and deploys application configuration contained in a PR
-	2. as a cli command (usually run by CI/CD pipeline)
+1. as an agent: deploy agent
+   runs in Kubernetes and deploys application configuration contained in a PR
+
+2. as a cli command: deploy request
+   usually run by CI/CD pipeline
 	`,
 	Version: constants.Version,
 }
