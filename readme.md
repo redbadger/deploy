@@ -1,6 +1,8 @@
 ## Deploy to Kubernetes through a Github Repo
 
-A small go application that:
+A cli command, written in Go, that runs in Kubernetes as an agent (`deploy agent`) or raises a pull request against the cluster repo to request a deployment (`deploy request`).
+
+### `deploy agent`
 
 1.  watches for PR updates on a webhook
 1.  clones the repo to an in-memory filesystem
@@ -8,6 +10,14 @@ A small go application that:
 1.  walks down any top-level directories that contain changes
 1.  gathers yaml files (however they are nested)
 1.  applies the manifests to a Kubernetes cluster using `kubctl`.
+
+### `deploy request`
+
+1.  checks out the cluster repo specified
+1.  copies the specified manifests into a new branch
+1.  commits, pushes and raises a PR requesting deployment
+
+### Note:
 
 This is an experiment to demonstrate how a CI/CD system might deploy to environments by opening a Pull Request on a "cluster repo" with the intention "please will you accept this configuration". It's early days and not production ready.
 
@@ -27,12 +37,7 @@ export PERSONAL_ACCESS_TOKEN=<personal access token>
 export DEPLOY_SECRET=<webhook secret>
 deploy help
 deploy help agent
-```
-
-To run:
-
-```bash
-deploy agent
+deploy help request
 ```
 
 Typical output:
