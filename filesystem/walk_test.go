@@ -1,4 +1,4 @@
-package fsWalker_test
+package filesystem_test
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/src-d/go-billy.v4"
 
-	"github.com/redbadger/deploy/fsWalker"
+	"github.com/redbadger/deploy/filesystem"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 )
 
@@ -110,7 +110,7 @@ func TestWalk(t *testing.T) {
 		return mark(fs, info, err, &errors, clear)
 	}
 	// Expect no errors.
-	err := fsWalker.Walk(fs, tree.name, markFn)
+	err := filesystem.Walk(fs, tree.name, markFn)
 	if err != nil {
 		t.Fatalf("no error expected, found: %s", err)
 	}
