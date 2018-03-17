@@ -27,13 +27,13 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	cloneURL := u.String()
 	r, err := gh.GetRepo(cloneURL, org, repo, token, "master", "master")
 	if err != nil {
-		log.Fatalf("Could not clone repo! %v", err)
+		log.Fatalln(err) // err has enough info
 	}
 
 	// Copy all of sourceDir in to our in-mem FS
 	w, err := r.Worktree()
 	if err != nil {
-		log.Fatal("Could not create worktree from repository!")
+		log.Fatalf("cannot create worktree from repository! %v", err)
 	}
 
 	// Create a new branch to the current HEAD
@@ -41,7 +41,7 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	ref := plumbing.NewHashReference("refs/heads/newdeployment", headRef.Hash()) // TODO: set canonical + unique branch name
 	err = r.Storer.SetReference(ref)
 	if err != nil {
-		log.Printf("Error setting reference, %v", err)
+		log.Printf("error setting reference, %v", err)
 	}
 
 	// Switch to newly created branch
@@ -53,14 +53,14 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 
 	err = copy.Copy(sourceDir, "/"+project, w.Filesystem)
 	if err != nil {
-		log.Fatalf("Could not copy files in to in-mem FS! %v", err)
+		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
 	}
 	// TODO: resolve; get registry; etc.
 
 	// git add -A
 	_, err = w.Add(".")
 	if err != nil {
-		log.Fatalf("Could not 'git add' files! %v", err)
+		log.Fatalf("cannot 'git add' files! %v", err)
 	}
 
 	// git commit
@@ -76,7 +76,7 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 
 	err = r.Storer.SetReference(plumbing.NewReferenceFromStrings("refs/heads/newdeployment", obj.Hash.String()))
 	if err != nil {
-		log.Printf("Error setting reference, %v", err)
+		log.Printf("error setting reference, %v", err)
 	}
 
 	// check if commit was empty?
@@ -85,7 +85,7 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 		return
 	}
 	if err != nil {
-		log.Printf("Error returned from commit: %v", err)
+		log.Printf("error returned from commit: %v", err)
 	}
 
 	// Push branch to remote
@@ -94,7 +94,7 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 		// RefSpecs: []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
 	})
 	if err != nil {
-		log.Printf("Error pushing: %v", err)
+		log.Printf("error pushing: %v", err)
 	}
 	// Raise PR ["deployments" repo] with requested changes
 	client, err := gh.NewClient(apiURL, token)
