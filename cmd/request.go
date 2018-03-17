@@ -12,7 +12,11 @@ import (
 var requestCmd = &cobra.Command{
 	Use:   "request",
 	Short: "request raises a PR against the deploy repo with the configuration to be deployed",
-	Long:  `request raises a PR against the deploy repo with the configuration to be deployed`,
+	Long: `
+	1. checks out the cluster repo specified
+	2. copies the specified manifests into a new branch
+	3. commits, pushes and raises a PR requesting deployment
+	`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.TokenEnvVar) {
 			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
@@ -23,13 +27,13 @@ var requestCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Must specifiy project: %v", err)
 		}
+		githubURL, err := cmd.Flags().GetString("githubURL")
+		if err != nil {
+			log.Fatalf("Must specifiy githubURL: %v", err)
+		}
 		apiURL, err := cmd.Flags().GetString("apiURL")
 		if err != nil {
 			log.Fatalf("Must specifiy apiURL: %v", err)
-		}
-		cloneURL, err := cmd.Flags().GetString("cloneURL")
-		if err != nil {
-			log.Fatalf("Must specifiy cloneURL: %v", err)
 		}
 		org, err := cmd.Flags().GetString("org")
 		if err != nil {
@@ -43,7 +47,7 @@ var requestCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Must specifiy stacksDir: %v", err)
 		}
-		request.Request(token, project, apiURL, cloneURL, org, repo, stacksDir)
+		request.Request(token, project, githubURL, apiURL, org, repo, stacksDir)
 	},
 }
 
@@ -51,9 +55,8 @@ func init() {
 	rootCmd.AddCommand(requestCmd)
 	requestCmd.Flags().String("project", "", "Project name")
 	requestCmd.MarkFlagRequired("project")
+	requestCmd.Flags().String("githubURL", "https://github.com", "Github URL")
 	requestCmd.Flags().String("apiURL", "https://api.github.com/", "Github API URL")
-	requestCmd.Flags().String("cloneURL", "", "Repository Clone URL")
-	requestCmd.MarkFlagRequired("cloneURL")
 	requestCmd.Flags().String("org", "", "Organisation name")
 	requestCmd.MarkFlagRequired("org")
 	requestCmd.Flags().String("repo", "", "Repository name")

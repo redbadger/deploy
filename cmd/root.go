@@ -52,11 +52,10 @@ func initConfig() {
 		viper.SetConfigName(".deploy")
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+	viper.AutomaticEnv()
 	viper.BindEnv(constants.SecretEnvVar)
 	viper.BindEnv(constants.TokenEnvVar)
 
-	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}

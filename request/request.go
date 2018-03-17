@@ -3,6 +3,8 @@ package request
 import (
 	"context"
 	"log"
+	"net/url"
+	"path"
 	"time"
 
 	"github.com/google/go-github/github"
@@ -15,8 +17,14 @@ import (
 )
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(token, project, apiURL, cloneURL, org, repo, stacksDir string) {
+func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	// Create in-mem FS w/ cloned deployments repo
+	u, err := url.Parse(githubURL)
+	if err != nil {
+		log.Fatalf("cannot parse github URL: %v\n", err)
+	}
+	u.Path = path.Join(org, repo+".git")
+	cloneURL := u.String()
 	r, err := gh.GetRepo(cloneURL, org, repo, token, "master", "master")
 	if err != nil {
 		log.Fatalf("Could not clone repo! %v", err)
