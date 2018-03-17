@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
-	"github.com/redbadger/deploy/copy"
+	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -30,7 +30,6 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 		log.Fatalln(err) // err has enough info
 	}
 
-	// Copy all of sourceDir in to our in-mem FS
 	w, err := r.Worktree()
 	if err != nil {
 		log.Fatalf("cannot create worktree from repository! %v", err)
@@ -49,12 +48,20 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 		Hash: ref.Hash(),
 	})
 
-	sourceDir := stacksDir + "/" + project
-
-	err = copy.Copy(sourceDir, "/"+project, w.Filesystem)
+	// Delete destination directory
+	dest := "/" + project
+	err = filesystem.Remove(dest, w.Filesystem)
+	if err != nil {
+		log.Fatalf("cannot remove destination directory: %v", err)
+	}
+	// Copy all of sourceDir in to our in-mem FS
+	sourceDir := path.Join(stacksDir, project)
+	log.Printf("copying from %s to %s", sourceDir, dest)
+	err = filesystem.Copy(sourceDir, dest, w.Filesystem)
 	if err != nil {
 		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
 	}
+
 	// TODO: resolve; get registry; etc.
 
 	// git add -A
