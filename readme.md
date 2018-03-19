@@ -14,7 +14,7 @@ A cli command, written in Go, that runs in Kubernetes as an agent (`deploy agent
 ### `deploy request`
 
 1.  checks out the cluster repo specified
-1.  copies the specified manifests into a new branch
+1.  copies the specified manifests into a new branch (named with the commit sha)
 1.  commits, pushes and raises a PR requesting deployment
 
 ### Note:
@@ -62,7 +62,7 @@ deployment "guestbook-ui" unchanged
 `deploy request` runs in the CD pipeline, but you can test from the root directory of this repo. Modify the config in `/example/guestbook` and then:
 
 ```
-> deploy request --org=redbadger --repo=cluster-local --stacksDir=example --project=guestbook
+> deploy request --stacksDir=example --project=guestbook --sha=41e8650 --org=redbadger --repo=cluster-local
 2018/03/17 13:50:22 copying from example/guestbook to /guestbook
 2018/03/17 13:50:22 commit obj: commit cfb3da3c0b28f4bb731a13689ed0f994ba24b340
 Author: Robot <robot>

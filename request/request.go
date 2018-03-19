@@ -17,7 +17,7 @@ import (
 )
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
+func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
 	// Create in-mem FS w/ cloned deployments repo
 	u, err := url.Parse(githubURL)
 	if err != nil {
@@ -37,7 +37,11 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 
 	// Create a new branch to the current HEAD
 	headRef, err := r.Head()
-	ref := plumbing.NewHashReference("refs/heads/newdeployment", headRef.Hash()) // TODO: set canonical + unique branch name
+	if err != nil {
+		log.Printf("error getting HEAD, %v", err)
+	}
+	branchRefName := path.Join("refs", "heads", "deploy-"+sha)
+	ref := plumbing.NewHashReference(plumbing.ReferenceName(branchRefName), headRef.Hash())
 	err = r.Storer.SetReference(ref)
 	if err != nil {
 		log.Printf("error setting reference, %v", err)
@@ -49,15 +53,15 @@ func Request(token, project, githubURL, apiURL, org, repo, stacksDir string) {
 	})
 
 	// Delete destination directory
-	dest := "/" + project
-	err = filesystem.Remove(dest, w.Filesystem)
+	destDir := "/" + project
+	err = filesystem.Remove(destDir, w.Filesystem)
 	if err != nil {
 		log.Fatalf("cannot remove destination directory: %v", err)
 	}
 	// Copy all of sourceDir in to our in-mem FS
 	sourceDir := path.Join(stacksDir, project)
-	log.Printf("copying from %s to %s", sourceDir, dest)
-	err = filesystem.Copy(sourceDir, dest, w.Filesystem)
+	log.Printf("copying from %s to %s", sourceDir, destDir)
+	err = filesystem.Copy(sourceDir, destDir, w.Filesystem)
 	if err != nil {
 		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
 	}
