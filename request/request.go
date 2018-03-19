@@ -16,23 +16,22 @@ import (
 	gHttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 )
 
-// Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
-	// Create in-mem FS w/ cloned deployments repo
+func buildCloneURL(githubURL, org, repo string) string {
 	u, err := url.Parse(githubURL)
 	if err != nil {
 		log.Fatalf("cannot parse github URL: %v\n", err)
 	}
 	u.Path = path.Join(org, repo+".git")
-	cloneURL := u.String()
+	return u.String()
+}
+
+// Request raises a PR against the deploy repo with the configuration to be deployed
+func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
+	// Create in-mem FS w/ cloned deployments repo
+	cloneURL := buildCloneURL(githubURL, org, repo)
 	r, err := gh.GetRepo(cloneURL, org, repo, token, "master", "master")
 	if err != nil {
 		log.Fatalln(err) // err has enough info
-	}
-
-	w, err := r.Worktree()
-	if err != nil {
-		log.Fatalf("cannot create worktree from repository! %v", err)
 	}
 
 	// Create a new branch to the current HEAD
@@ -48,7 +47,11 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 		log.Printf("error setting reference, %v", err)
 	}
 
-	// Switch to newly created branch
+	// get a working tree and switch to the newly created branch
+	w, err := r.Worktree()
+	if err != nil {
+		log.Fatalf("cannot create worktree from repository! %v", err)
+	}
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: ref.Hash(),
 	})
@@ -59,6 +62,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	if err != nil {
 		log.Fatalf("cannot remove destination directory: %v", err)
 	}
+
 	// Copy all of sourceDir in to our in-mem FS
 	sourceDir := path.Join(stacksDir, project)
 	log.Printf("copying from %s to %s", sourceDir, destDir)
@@ -107,6 +111,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	if err != nil {
 		log.Printf("error pushing: %v", err)
 	}
+
 	// Raise PR ["deployments" repo] with requested changes
 	client, err := gh.NewClient(apiURL, token)
 
