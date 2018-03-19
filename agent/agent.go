@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"fmt"
@@ -13,35 +13,19 @@ import (
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
-	"github.com/redbadger/deploy/fsWalker"
+	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
 	"gopkg.in/go-playground/webhooks.v3"
 	"gopkg.in/go-playground/webhooks.v3/github"
 )
 
-const (
-	secretEnvVar = "DEPLOY_SECRET"
-	tokenEnvVar  = "PERSONAL_ACCESS_TOKEN"
-	path         = "/webhooks"
-	port         = 3016
-)
-
-func main() {
-	secret, present := os.LookupEnv(secretEnvVar)
-	if !present {
-		log.Fatalf("environment variable %s is not exported.\n", secretEnvVar)
-	}
-
-	token, present := os.LookupEnv(tokenEnvVar)
-	if !present {
-		log.Fatalf("environment variable %s is not exported.\n", tokenEnvVar)
-	}
-
+// Agent runs deploy as a bot
+func Agent(port uint16, path, token, secret string) {
 	hook := github.New(&github.Config{Secret: secret})
 	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
 
-	err := webhooks.Run(hook, ":"+strconv.Itoa(port), path)
+	err := webhooks.Run(hook, ":"+strconv.FormatUint(uint64(port), 10), path)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("cannot listen for webhook: %v", err))
 	}
@@ -49,7 +33,7 @@ func main() {
 
 var patterns = []string{"*.yml", "*.yaml"}
 
-func visit(files *[]string) fsWalker.WalkFunc {
+func visit(files *[]string) filesystem.WalkFunc {
 	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // can't walk here, but continue walking elsewhere
@@ -124,7 +108,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		for _, dir := range changedDirs {
 			log.Printf("Walking %s\n", dir)
 			var contents []string
-			err = fsWalker.Walk(w.Filesystem, dir, visit(&contents))
+			err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
 			if err != nil {
 				log.Fatalf("error walking filesystem %v\n", err)
 			}

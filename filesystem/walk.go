@@ -1,4 +1,4 @@
-package fsWalker
+package filesystem
 
 import (
 	"errors"
