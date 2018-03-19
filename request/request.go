@@ -40,8 +40,9 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	if err != nil {
 		log.Printf("error getting HEAD, %v", err)
 	}
-	branchRefName := path.Join("refs", "heads", "deploy-"+sha)
-	ref := plumbing.NewHashReference(plumbing.ReferenceName(branchRefName), headRef.Hash())
+	branchName := "deploy-" + sha
+	branchRefName := plumbing.ReferenceName(path.Join("refs", "heads", branchName))
+	ref := plumbing.NewHashReference(branchRefName, headRef.Hash())
 	err = r.Storer.SetReference(ref)
 	if err != nil {
 		log.Printf("error setting reference, %v", err)
@@ -85,7 +86,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	obj, _ := r.CommitObject(commit)
 	log.Printf("commit obj: %v", obj)
 
-	err = r.Storer.SetReference(plumbing.NewReferenceFromStrings("refs/heads/newdeployment", obj.Hash.String()))
+	err = r.Storer.SetReference(plumbing.NewHashReference(branchRefName, obj.Hash))
 	if err != nil {
 		log.Printf("error setting reference, %v", err)
 	}
@@ -110,9 +111,9 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	client, err := gh.NewClient(apiURL, token)
 
 	title := project + " deployment request"
-	head := "newdeployment"
+	head := branchName
 	base := "master"
-	body := "# Hello"
+	body := "Deployment request for " + project + " at " + sha
 
 	pr, _, err := client.PullRequests.Create(context.Background(), org, repo, &github.NewPullRequest{
 		Title: &title,
