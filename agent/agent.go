@@ -13,7 +13,7 @@ import (
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
-	"github.com/redbadger/deploy/fsWalker"
+	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
 	"gopkg.in/go-playground/webhooks.v3"
@@ -33,7 +33,7 @@ func Agent(port uint16, path, token, secret string) {
 
 var patterns = []string{"*.yml", "*.yaml"}
 
-func visit(files *[]string) fsWalker.WalkFunc {
+func visit(files *[]string) filesystem.WalkFunc {
 	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // can't walk here, but continue walking elsewhere
@@ -108,7 +108,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		for _, dir := range changedDirs {
 			log.Printf("Walking %s\n", dir)
 			var contents []string
-			err = fsWalker.Walk(w.Filesystem, dir, visit(&contents))
+			err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
 			if err != nil {
 				log.Fatalf("error walking filesystem %v\n", err)
 			}
