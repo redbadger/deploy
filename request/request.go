@@ -58,14 +58,16 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 
 	// Delete destination directory
 	destDir := "/" + project
-	err = filesystem.Remove(destDir, w.Filesystem)
-	if err != nil {
-		log.Fatalf("cannot remove destination directory: %v", err)
+	info, err := w.Filesystem.Lstat(destDir)
+	if err == nil && info.IsDir() {
+		err = filesystem.Remove(destDir, w.Filesystem)
+		if err != nil {
+			log.Fatalf("cannot remove destination directory: %v", err)
+		}
 	}
 
 	// Copy all of sourceDir in to our in-mem FS
 	sourceDir := path.Join(stacksDir, project)
-	log.Printf("copying from %s to %s", sourceDir, destDir)
 	err = filesystem.Copy(sourceDir, destDir, w.Filesystem)
 	if err != nil {
 		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
