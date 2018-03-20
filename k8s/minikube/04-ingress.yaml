@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: deploy
+  namespace: deploy-robot
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - host: deploy.internal
+    http:
+      paths:
+      - backend:
+          serviceName: deploy-robot
+          servicePort: 80
