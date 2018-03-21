@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-robot
+  namespace: deploy-robot
+  labels:
+    app: deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deploy
+  template:
+    metadata:
+      labels:
+        app: deploy
+    spec:
+      serviceAccountName: deploy-robot
+      containers:
+      - name: deploy
+        image: redbadger/deploy
+        args:
+        - agent
+        env:
+        - name: DEPLOY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: deploy-secret
+              key: webhookSecret
+        - name: PERSONAL_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: deploy-secret
+              key: personalAccessToken
+        ports:
+        - containerPort: 3016
