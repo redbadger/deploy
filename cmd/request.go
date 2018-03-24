@@ -31,12 +31,13 @@ Raise a PR against the cluster repo with the configuration to be deployed:
 3. commits, pushes and raises a PR requesting deployment
 	`,
 	Example: `deploy request --stacksDir=example --project=guestbook --sha=41e8650 --org=redbadger --repo=cluster-local`,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.TokenEnvVar) {
 			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
 		}
-		token := viper.GetString(constants.TokenEnvVar)
-
+		token = viper.GetString(constants.TokenEnvVar)
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		request.Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token)
 	},
 }

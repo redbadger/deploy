@@ -29,7 +29,7 @@ Run deploy as an agent:
 6.  applies the manifests to a Kubernetes cluster using kubctl.
 `,
 	Example: `deploy agent &`,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.SecretEnvVar) {
 			log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
 		}
@@ -37,9 +37,10 @@ Run deploy as an agent:
 			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
 		}
 
-		secret := viper.GetString(constants.SecretEnvVar)
-		token := viper.GetString(constants.TokenEnvVar)
-
+		secret = viper.GetString(constants.SecretEnvVar)
+		token = viper.GetString(constants.TokenEnvVar)
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		agent.Agent(port, path, token, secret)
 	},
 }

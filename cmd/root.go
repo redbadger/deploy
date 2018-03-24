@@ -10,7 +10,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	cfgFile string
+	secret  string
+	token   string
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "deploy",
