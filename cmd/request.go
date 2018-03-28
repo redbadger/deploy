@@ -9,9 +9,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	stacksDir string
+	project   string
+	sha       string
+	githubURL string
+	apiURL    string
+	org       string
+	repo      string
+)
+
 var requestCmd = &cobra.Command{
-	Use:   "request",
-	Short: "Raise a PR against the cluster repo with the configuration to be deployed",
+	Use:     "request",
+	Aliases: []string{"pr"},
+	Short:   "Raise a PR against the cluster repo with the configuration to be deployed",
 	Long: `
 Raise a PR against the cluster repo with the configuration to be deployed:
 
@@ -19,55 +30,35 @@ Raise a PR against the cluster repo with the configuration to be deployed:
 2. copies the specified manifests into a new branch
 3. commits, pushes and raises a PR requesting deployment
 	`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Example: `deploy request --stacksDir=example --project=guestbook --sha=41e8650 --org=redbadger --repo=cluster-local`,
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.TokenEnvVar) {
 			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
 		}
-		token := viper.GetString(constants.TokenEnvVar)
-
-		stacksDir, err := cmd.Flags().GetString("stacksDir")
-		if err != nil {
-			log.Fatalf("Must specifiy stacksDir: %v", err)
-		}
-		project, err := cmd.Flags().GetString("project")
-		if err != nil {
-			log.Fatalf("Must specifiy project: %v", err)
-		}
-		sha, err := cmd.Flags().GetString("sha")
-		if err != nil {
-			log.Fatalf("Must specifiy sha: %v", err)
-		}
-		githubURL, err := cmd.Flags().GetString("githubURL")
-		if err != nil {
-			log.Fatalf("Must specifiy githubURL: %v", err)
-		}
-		apiURL, err := cmd.Flags().GetString("apiURL")
-		if err != nil {
-			log.Fatalf("Must specifiy apiURL: %v", err)
-		}
-		org, err := cmd.Flags().GetString("org")
-		if err != nil {
-			log.Fatalf("Must specifiy org: %v", err)
-		}
-		repo, err := cmd.Flags().GetString("repo")
-		if err != nil {
-			log.Fatalf("Must specifiy repo: %v", err)
-		}
+		token = viper.GetString(constants.TokenEnvVar)
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		request.Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(requestCmd)
-	requestCmd.Flags().String("stacksDir", "stacks", "Name of stacks directory")
-	requestCmd.Flags().String("project", "", "Project name")
+	requestCmd.Flags().StringVar(&stacksDir, "stacksDir", "stacks", "Name of stacks directory")
+
+	requestCmd.Flags().StringVar(&project, "project", "", "Project name")
 	requestCmd.MarkFlagRequired("project")
-	requestCmd.Flags().String("sha", "", "Commit SHA")
+
+	requestCmd.Flags().StringVar(&sha, "sha", "", "Commit SHA")
 	requestCmd.MarkFlagRequired("sha")
-	requestCmd.Flags().String("githubURL", "https://github.com", "Github URL")
-	requestCmd.Flags().String("apiURL", "https://api.github.com/", "Github API URL")
-	requestCmd.Flags().String("org", "", "Organisation name")
+
+	requestCmd.Flags().StringVar(&githubURL, "githubURL", "https://github.com", "Github URL")
+
+	requestCmd.Flags().StringVar(&apiURL, "apiURL", "https://api.github.com/", "Github API URL")
+
+	requestCmd.Flags().StringVar(&org, "org", "", "Organisation name")
 	requestCmd.MarkFlagRequired("org")
-	requestCmd.Flags().String("repo", "", "Repository name")
+
+	requestCmd.Flags().StringVar(&repo, "repo", "", "Repository name")
 	requestCmd.MarkFlagRequired("repo")
 }
