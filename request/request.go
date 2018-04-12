@@ -115,7 +115,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	}
 
 	// Raise PR ["deployments" repo] with requested changes
-	client, err := gh.NewClient(apiURL, token)
+	client, err := gh.NewClient(context.Background(), apiURL, token)
 
 	title := project + " deployment request"
 	head := branchName

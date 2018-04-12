@@ -1,14 +1,19 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/google/go-github/github"
+	"gopkg.in/go-playground/webhooks.v3"
+	webhook "gopkg.in/go-playground/webhooks.v3/github"
 	"gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -16,14 +21,12 @@ import (
 	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
-	"gopkg.in/go-playground/webhooks.v3"
-	"gopkg.in/go-playground/webhooks.v3/github"
 )
 
 // Agent runs deploy as a bot
 func Agent(port uint16, path, token, secret string) {
-	hook := github.New(&github.Config{Secret: secret})
-	hook.RegisterEvents(handlePullRequest(token), github.PullRequestEvent)
+	hook := webhook.New(&webhook.Config{Secret: secret})
+	hook.RegisterEvents(handlePullRequest(token), webhook.PullRequestEvent)
 
 	err := webhooks.Run(hook, ":"+strconv.FormatUint(uint64(port), 10), path)
 	if err != nil {
@@ -66,12 +69,43 @@ func visit(files *[]string) filesystem.WalkFunc {
 	}
 }
 
+func statusUpdater(ctx context.Context, client *github.Client, context, login, repo, ref string) func(state, desc string) error {
+	return func(state, desc string) error {
+		log.Printf("%s: %s", state, desc)
+		status := github.RepoStatus{
+			State:       &state,
+			Description: &desc,
+			Context:     &context,
+		}
+		_, _, err := client.Repositories.CreateStatus(ctx, login, repo, ref, &status)
+
+		return err
+	}
+}
+
 func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 	return func(payload interface{}, header webhooks.Header) {
-		pl := payload.(github.PullRequestPayload)
+		pl := payload.(webhook.PullRequestPayload)
 		pr := pl.PullRequest
-
 		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
+
+		ctx := context.Background()
+		apiURL, err := url.Parse(pl.Repository.StatusesURL)
+		if err != nil {
+			return
+		}
+		apiURL.Path = ""
+		client, err := gh.NewClient(ctx, apiURL.String(), token)
+		if err != nil {
+			return
+		}
+
+		updateState := statusUpdater(ctx, client, "deploy", pl.Repository.Owner.Login, pl.Repository.Name, pr.Head.Sha)
+
+		err = updateState("pending", "deployment started")
+		if err != nil {
+			log.Fatalf("error updating status %v\n", err)
+		}
 
 		r, err := gh.GetRepo(
 			pl.Repository.CloneURL,
@@ -116,6 +150,10 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 				err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
 				if err != nil {
 					log.Fatalf("error applying manifests to the cluster: %v\n", err)
+				}
+				err = updateState("success", fmt.Sprintf("deployment of %s succeeded", dir))
+				if err != nil {
+					log.Fatalf("error updating status %v\n", err)
 				}
 			}
 		}
