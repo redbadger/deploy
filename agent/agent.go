@@ -100,21 +100,18 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			return
 		}
 
-		updateState := statusUpdater(ctx, client, "deploy", pl.Repository.Owner.Login, pl.Repository.Name, pr.Head.Sha)
+		owner := pl.Repository.Owner.Login
+		repo := pl.Repository.Name
+		headRef := pr.Head.Sha
+		baseRef := pr.Base.Sha
+		updateStatus := statusUpdater(ctx, client, "deploy", owner, repo, headRef)
 
-		err = updateState("pending", "deployment started")
+		err = updateStatus("pending", "deployment started")
 		if err != nil {
 			log.Fatalf("error updating status %v\n", err)
 		}
 
-		r, err := gh.GetRepo(
-			pl.Repository.CloneURL,
-			pl.Repository.Owner.Login,
-			pl.Repository.Name,
-			token,
-			pr.Head.Sha,
-			pr.Base.Sha,
-		)
+		r, err := gh.GetRepo(pl.Repository.CloneURL, owner, repo, token, headRef, baseRef)
 		if err != nil {
 			log.Fatalf("error getting repo %v\n", err)
 		}
@@ -125,15 +122,14 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			return
 		}
 		err = w.Checkout(&git.CheckoutOptions{
-			Hash: plumbing.NewHash(pr.Head.Sha),
+			Hash: plumbing.NewHash(headRef),
 		})
 		if err != nil {
-			err = fmt.Errorf("error checking out %s: %v", pr.Head.Sha, err)
+			err = fmt.Errorf("error checking out %s: %v", headRef, err)
 			return
 		}
 
-		changedDirs, err := gh.GetChangedDirectories(r, pr.Head.Sha,
-			pr.Base.Sha)
+		changedDirs, err := gh.GetChangedDirectories(r, headRef, baseRef)
 		if err != nil {
 			err = fmt.Errorf("error identifying changed top level directories: %v", err)
 			return
@@ -149,11 +145,15 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			if len(contents) > 0 {
 				err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
 				if err != nil {
-					log.Fatalf("error applying manifests to the cluster: %v\n", err)
-				}
-				err = updateState("success", fmt.Sprintf("deployment of %s succeeded", dir))
-				if err != nil {
-					log.Fatalf("error updating status %v\n", err)
+					err1 := updateStatus("error", fmt.Sprintf("deployment of %s failed: %v", dir, err))
+					if err1 != nil {
+						log.Fatalf("error updating status %v\n", err1)
+					}
+				} else {
+					err1 := updateStatus("success", fmt.Sprintf("deployment of %s succeeded", dir))
+					if err1 != nil {
+						log.Fatalf("error updating status %v\n", err1)
+					}
 				}
 			}
 		}
