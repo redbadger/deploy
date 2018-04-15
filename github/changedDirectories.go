@@ -26,25 +26,6 @@ func getTopLevelDirName(path string) string {
 	return strings.Split(path, separator)[0]
 }
 
-func getChangeName(c *object.Change) (name string) {
-	name = c.To.Name
-	if name == "" {
-		name = c.From.Name
-	}
-	return
-}
-
-func hasProjectStackChanged(base, projectName string, c object.Changes) (changed bool) {
-	changed = false
-	for _, change := range c {
-		name := getChangeName(change)
-		if strings.HasPrefix(name, base+"/"+projectName) {
-			return true
-		}
-	}
-	return
-}
-
 func getTree(repo *git.Repository, ref string) (tree *object.Tree, err error) {
 	hash := plumbing.NewHash(ref)
 	commit, err := repo.CommitObject(hash)

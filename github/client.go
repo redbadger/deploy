@@ -10,11 +10,11 @@ import (
 
 // NewClient creates a new github client for the apiURL,
 // authenticated with the supplied token
-func NewClient(apiURL, token string) (client *github.Client, err error) {
+func NewClient(ctx context.Context, apiURL, token string) (client *github.Client, err error) {
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
-	tokenClient := oauth2.NewClient(context.Background(), tokenService)
+	tokenClient := oauth2.NewClient(ctx, tokenService)
 
 	client, err = github.NewEnterpriseClient(apiURL, apiURL, tokenClient)
 	if err != nil {
