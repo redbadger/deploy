@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -90,12 +89,11 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
 
 		ctx := context.Background()
-		apiURL, err := url.Parse(pl.Repository.StatusesURL)
+		apiURL, err := RootAPI(pl.Repository.URL)
 		if err != nil {
 			return
 		}
-		apiURL.Path = ""
-		client, err := gh.NewClient(ctx, apiURL.String(), token)
+		client, err := gh.NewClient(ctx, apiURL, token)
 		if err != nil {
 			return
 		}
