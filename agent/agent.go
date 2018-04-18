@@ -151,15 +151,22 @@ func deploy(req *model.DeploymentRequest) {
 			}
 		}
 	}
+}
 
+func consume(ch chan *model.DeploymentRequest) {
+	for {
+		deploy(<-ch)
+	}
 }
 
 func handlePullRequest(token string) func(interface{}, webhooks.Header) {
+	ch := make(chan *model.DeploymentRequest, 100)
+	go consume(ch)
 	return func(payload interface{}, header webhooks.Header) {
 		pl := payload.(webhook.PullRequestPayload)
 		pr := pl.PullRequest
 		log.Printf("\nReceived PR #%d, SHA %s\n", pl.PullRequest.Number, pr.Head.Sha)
-		request := &model.DeploymentRequest{
+		ch <- &model.DeploymentRequest{
 			URL:      pl.Repository.URL,
 			CloneURL: pl.Repository.CloneURL,
 			Token:    token,
@@ -168,6 +175,5 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 			HeadRef:  pr.Head.Sha,
 			BaseRef:  pr.Base.Sha,
 		}
-		deploy(request)
 	}
 }
