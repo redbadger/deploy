@@ -12,12 +12,12 @@ const (
 	apiVersion = "/v3"
 )
 
-// RootAPI returns the root of a given API URL
+// APIRoot returns the root of a given API URL
 // so for public github:
 //   https://api.github.com/repos/my-org/my-repo/pulls/1 would return https://api.github.com
 // and for enterprise github:
 //   https://github.my-domain/api/v3/repos/my-org/my-repo/pulls/1 returns https://github.my-domain/api/v3
-func RootAPI(repoURL string) (APIURL string, err error) {
+func APIRoot(repoURL string) (APIURL string, err error) {
 	if strings.Contains(repoURL, pubURL) {
 		APIURL = pubURL
 		return

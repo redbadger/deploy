@@ -89,7 +89,7 @@ func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
 
 		ctx := context.Background()
-		apiURL, err := RootAPI(pl.Repository.URL)
+		apiURL, err := APIRoot(pl.Repository.URL)
 		if err != nil {
 			return
 		}

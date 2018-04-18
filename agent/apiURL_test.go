@@ -35,7 +35,7 @@ func TestRootAPI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAPIURL, err := RootAPI(tt.args.repoURL)
+			gotAPIURL, err := APIRoot(tt.args.repoURL)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RootAPI() error = %v, wantErr %v", err, tt.wantErr)
 				return
