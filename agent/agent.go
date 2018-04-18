@@ -20,6 +20,7 @@ import (
 	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
+	"github.com/redbadger/deploy/model"
 )
 
 // Agent runs deploy as a bot
@@ -68,7 +69,9 @@ func visit(files *[]string) filesystem.WalkFunc {
 	}
 }
 
-func statusUpdater(ctx context.Context, client *github.Client, context, login, repo, ref string) func(state, desc string) error {
+func statusUpdater(
+	ctx context.Context, client *github.Client, context, login, repo, ref string,
+) func(state, desc string) error {
 	return func(state, desc string) error {
 		log.Printf("%s: %s", state, desc)
 		status := github.RepoStatus{
@@ -82,78 +85,89 @@ func statusUpdater(ctx context.Context, client *github.Client, context, login, r
 	}
 }
 
+func deploy(req *model.DeploymentRequest) {
+	ctx := context.Background()
+	apiURL, err := APIRoot(req.URL)
+	if err != nil {
+		return
+	}
+	client, err := gh.NewClient(ctx, apiURL, req.Token)
+	if err != nil {
+		return
+	}
+
+	updateStatus := statusUpdater(
+		ctx, client, "deploy", req.Owner, req.Repo, req.HeadRef,
+	)
+
+	err = updateStatus("pending", "deployment started")
+	if err != nil {
+		log.Fatalf("error updating status %v\n", err)
+	}
+
+	r, err := gh.GetRepo(req.CloneURL, req.Token)
+	if err != nil {
+		log.Fatalf("error getting repo %v\n", err)
+	}
+
+	w, err := r.Worktree()
+	if err != nil {
+		err = fmt.Errorf("error getting work tree: %v", err)
+		return
+	}
+	err = w.Checkout(&git.CheckoutOptions{
+		Hash: plumbing.NewHash(req.HeadRef),
+	})
+	if err != nil {
+		err = fmt.Errorf("error checking out %s: %v", req.HeadRef, err)
+		return
+	}
+
+	changedDirs, err := gh.GetChangedDirectories(r, req.HeadRef, req.BaseRef)
+	if err != nil {
+		err = fmt.Errorf("error identifying changed top level directories: %v", err)
+		return
+	}
+
+	for _, dir := range changedDirs {
+		log.Printf("Walking %s\n", dir)
+		var contents []string
+		err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
+		if err != nil {
+			log.Fatalf("error walking filesystem %v\n", err)
+		}
+		if len(contents) > 0 {
+			err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
+			if err != nil {
+				err1 := updateStatus("error", fmt.Sprintf("deployment of %s failed: %v", dir, err))
+				if err1 != nil {
+					log.Fatalf("error updating status %v\n", err1)
+				}
+			} else {
+				err1 := updateStatus("success", fmt.Sprintf("deployment of %s succeeded", dir))
+				if err1 != nil {
+					log.Fatalf("error updating status %v\n", err1)
+				}
+			}
+		}
+	}
+
+}
+
 func handlePullRequest(token string) func(interface{}, webhooks.Header) {
 	return func(payload interface{}, header webhooks.Header) {
 		pl := payload.(webhook.PullRequestPayload)
 		pr := pl.PullRequest
-		log.Printf("\nPR #%d, SHA %s\n", pl.PullRequest.Number, pl.PullRequest.Head.Sha)
-
-		ctx := context.Background()
-		apiURL, err := APIRoot(pl.Repository.URL)
-		if err != nil {
-			return
+		log.Printf("\nReceived PR #%d, SHA %s\n", pl.PullRequest.Number, pr.Head.Sha)
+		request := &model.DeploymentRequest{
+			URL:      pl.Repository.URL,
+			CloneURL: pl.Repository.CloneURL,
+			Token:    token,
+			Owner:    pl.Repository.Owner.Login,
+			Repo:     pl.Repository.Name,
+			HeadRef:  pr.Head.Sha,
+			BaseRef:  pr.Base.Sha,
 		}
-		client, err := gh.NewClient(ctx, apiURL, token)
-		if err != nil {
-			return
-		}
-
-		owner := pl.Repository.Owner.Login
-		repo := pl.Repository.Name
-		headRef := pr.Head.Sha
-		baseRef := pr.Base.Sha
-		updateStatus := statusUpdater(ctx, client, "deploy", owner, repo, headRef)
-
-		err = updateStatus("pending", "deployment started")
-		if err != nil {
-			log.Fatalf("error updating status %v\n", err)
-		}
-
-		r, err := gh.GetRepo(pl.Repository.CloneURL, owner, repo, token, headRef, baseRef)
-		if err != nil {
-			log.Fatalf("error getting repo %v\n", err)
-		}
-
-		w, err := r.Worktree()
-		if err != nil {
-			err = fmt.Errorf("error getting work tree: %v", err)
-			return
-		}
-		err = w.Checkout(&git.CheckoutOptions{
-			Hash: plumbing.NewHash(headRef),
-		})
-		if err != nil {
-			err = fmt.Errorf("error checking out %s: %v", headRef, err)
-			return
-		}
-
-		changedDirs, err := gh.GetChangedDirectories(r, headRef, baseRef)
-		if err != nil {
-			err = fmt.Errorf("error identifying changed top level directories: %v", err)
-			return
-		}
-
-		for _, dir := range changedDirs {
-			log.Printf("Walking %s\n", dir)
-			var contents []string
-			err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
-			if err != nil {
-				log.Fatalf("error walking filesystem %v\n", err)
-			}
-			if len(contents) > 0 {
-				err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
-				if err != nil {
-					err1 := updateStatus("error", fmt.Sprintf("deployment of %s failed: %v", dir, err))
-					if err1 != nil {
-						log.Fatalf("error updating status %v\n", err1)
-					}
-				} else {
-					err1 := updateStatus("success", fmt.Sprintf("deployment of %s succeeded", dir))
-					if err1 != nil {
-						log.Fatalf("error updating status %v\n", err1)
-					}
-				}
-			}
-		}
+		deploy(request)
 	}
 }

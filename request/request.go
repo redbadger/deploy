@@ -28,8 +28,7 @@ func buildCloneURL(githubURL, org, repo string) string {
 // Request raises a PR against the deploy repo with the configuration to be deployed
 func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
 	// Create in-mem FS w/ cloned deployments repo
-	cloneURL := buildCloneURL(githubURL, org, repo)
-	r, err := gh.GetRepo(cloneURL, org, repo, token, "master", "master")
+	r, err := gh.GetRepo(buildCloneURL(githubURL, org, repo), token)
 	if err != nil {
 		log.Fatalln(err) // err has enough info
 	}

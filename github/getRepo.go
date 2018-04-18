@@ -12,7 +12,7 @@ import (
 )
 
 // GetRepo returns a git Repository cloned into a new in-memory filesystem
-func GetRepo(cloneURL, org, name, token, headRef, baseRef string) (r *git.Repository, err error) {
+func GetRepo(cloneURL, token string) (r *git.Repository, err error) {
 	context := context.Background()
 	r, err = git.CloneContext(context, memory.NewStorage(), memfs.New(), &git.CloneOptions{
 		URL:  cloneURL,
