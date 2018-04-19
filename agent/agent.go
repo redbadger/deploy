@@ -81,11 +81,14 @@ func statusUpdater(
 		}
 		_, _, err := client.Repositories.CreateStatus(ctx, login, repo, ref, &status)
 
-		return err
+		if err != nil {
+			return fmt.Errorf("error updating status %v", err)
+		}
+		return nil
 	}
 }
 
-func deploy(req *model.DeploymentRequest) {
+func deploy(req *model.DeploymentRequest) (err error) {
 	ctx := context.Background()
 	apiURL, err := APIRoot(req.URL)
 	if err != nil {
@@ -97,36 +100,58 @@ func deploy(req *model.DeploymentRequest) {
 	}
 
 	updateStatus := statusUpdater(
-		ctx, client, "deploy", req.Owner, req.Repo, req.HeadRef,
+		ctx, client, "deploy", req.Owner, req.Repo, req.HeadSHA,
 	)
 
 	err = updateStatus("pending", "deployment started")
 	if err != nil {
-		log.Fatalf("error updating status %v\n", err)
+		return
 	}
 
 	r, err := gh.GetRepo(ctx, req.CloneURL, req.Token)
 	if err != nil {
-		log.Fatalf("error getting repo %v\n", err)
+		return fmt.Errorf("error getting repo %v", err)
+	}
+
+	// merge master
+	log.Println("merging master")
+	head := "master"
+	commit, _, err := client.Repositories.Merge(
+		ctx, req.Owner, req.Repo,
+		&github.RepositoryMergeRequest{
+			Base:          &req.HeadRef, // this PR HEAD
+			Head:          &head,
+			CommitMessage: nil,
+		})
+	if err != nil {
+		return fmt.Errorf("error merging master: %v", err)
+	}
+	if commit.SHA != nil {
+		// we merged master, so abandon this request after updating status
+		err = updateStatus(
+			"success",
+			fmt.Sprintf("master was merged so deployment will occur on commit %s", *commit.SHA),
+		)
+		if err != nil {
+			return
+		}
+		return
 	}
 
 	w, err := r.Worktree()
 	if err != nil {
-		err = fmt.Errorf("error getting work tree: %v", err)
-		return
+		return fmt.Errorf("error getting work tree: %v", err)
 	}
 	err = w.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(req.HeadRef),
+		Hash: plumbing.NewHash(req.HeadSHA),
 	})
 	if err != nil {
-		err = fmt.Errorf("error checking out %s: %v", req.HeadRef, err)
-		return
+		return fmt.Errorf("error checking out %s: %v", req.HeadSHA, err)
 	}
 
-	changedDirs, err := gh.GetChangedDirectories(r, req.HeadRef, req.BaseRef)
+	changedDirs, err := gh.GetChangedDirectories(r, req.HeadSHA, req.BaseSHA)
 	if err != nil {
-		err = fmt.Errorf("error identifying changed top level directories: %v", err)
-		return
+		return fmt.Errorf("error identifying changed top level directories: %v", err)
 	}
 
 	for _, dir := range changedDirs {
@@ -134,28 +159,32 @@ func deploy(req *model.DeploymentRequest) {
 		var contents []string
 		err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
 		if err != nil {
-			log.Fatalf("error walking filesystem %v\n", err)
+			return fmt.Errorf("error walking filesystem %v", err)
 		}
 		if len(contents) > 0 {
 			err = kubectl.Apply(dir, strings.Join(contents, "---\n"))
 			if err != nil {
 				err1 := updateStatus("error", fmt.Sprintf("deployment of %s failed: %v", dir, err))
 				if err1 != nil {
-					log.Fatalf("error updating status %v\n", err1)
+					return
 				}
 			} else {
 				err1 := updateStatus("success", fmt.Sprintf("deployment of %s succeeded", dir))
 				if err1 != nil {
-					log.Fatalf("error updating status %v\n", err1)
+					return
 				}
 			}
 		}
 	}
+	return
 }
 
 func consume(ch chan *model.DeploymentRequest) {
 	for {
-		deploy(<-ch)
+		err := deploy(<-ch)
+		if err != nil {
+			log.Printf("error executing deployment request %v", err)
+		}
 	}
 }
 
@@ -172,8 +201,9 @@ func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
 			Token:    token,
 			Owner:    pl.Repository.Owner.Login,
 			Repo:     pl.Repository.Name,
-			HeadRef:  pr.Head.Sha,
-			BaseRef:  pr.Base.Sha,
+			HeadRef:  pr.Head.Ref,
+			HeadSHA:  pr.Head.Sha,
+			BaseSHA:  pr.Base.Sha,
 		}
 	}
 }
