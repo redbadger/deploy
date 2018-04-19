@@ -132,9 +132,6 @@ func deploy(req *model.DeploymentRequest) (err error) {
 			"success",
 			fmt.Sprintf("master was merged so deployment will occur on commit %s", *commit.SHA),
 		)
-		if err != nil {
-			return
-		}
 		return
 	}
 
@@ -142,6 +139,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	if err != nil {
 		return fmt.Errorf("error getting work tree: %v", err)
 	}
+
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: plumbing.NewHash(req.HeadSHA),
 	})
@@ -193,17 +191,20 @@ func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
 	go consume(ch)
 	return func(payload interface{}, header webhooks.Header) {
 		pl := payload.(webhook.PullRequestPayload)
-		pr := pl.PullRequest
-		log.Printf("\nReceived PR #%d, SHA %s\n", pl.PullRequest.Number, pr.Head.Sha)
-		ch <- &model.DeploymentRequest{
-			URL:      pl.Repository.URL,
-			CloneURL: pl.Repository.CloneURL,
-			Token:    token,
-			Owner:    pl.Repository.Owner.Login,
-			Repo:     pl.Repository.Name,
-			HeadRef:  pr.Head.Ref,
-			HeadSHA:  pr.Head.Sha,
-			BaseSHA:  pr.Base.Sha,
+		switch pl.Action {
+		case "opened", "synchronize":
+			pr := pl.PullRequest
+			log.Printf("\nReceived %s on PR #%d, SHA %s\n", pl.Action, pl.PullRequest.Number, pr.Head.Sha)
+			ch <- &model.DeploymentRequest{
+				URL:      pl.Repository.URL,
+				CloneURL: pl.Repository.CloneURL,
+				Token:    token,
+				Owner:    pl.Repository.Owner.Login,
+				Repo:     pl.Repository.Name,
+				HeadRef:  pr.Head.Ref,
+				HeadSHA:  pr.Head.Sha,
+				BaseSHA:  pr.Base.Sha,
+			}
 		}
 	}
 }
