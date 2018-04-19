@@ -152,6 +152,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return fmt.Errorf("error identifying changed top level directories: %v", err)
 	}
 
+	var succeeded []string
 	for _, dir := range changedDirs {
 		log.Printf("Walking %s\n", dir)
 		var contents []string
@@ -167,12 +168,18 @@ func deploy(req *model.DeploymentRequest) (err error) {
 					return
 				}
 			} else {
-				err1 := updateStatus("success", fmt.Sprintf("deployment of %s succeeded", dir))
-				if err1 != nil {
-					return
-				}
+				succeeded = append(succeeded, dir)
 			}
 		}
+	}
+	msg := fmt.Sprintf("deployment of %s succeeded", succeeded)
+	err1 := updateStatus("success", msg)
+	if err1 != nil {
+		return
+	}
+	_, _, err = client.PullRequests.Merge(ctx, req.Owner, req.Repo, int(req.Number), msg, nil)
+	if err != nil {
+		return
 	}
 	return
 }
@@ -194,17 +201,20 @@ func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
 		switch pl.Action {
 		case "opened", "synchronize":
 			pr := pl.PullRequest
-			log.Printf("\nReceived %s on PR #%d, SHA %s\n", pl.Action, pl.PullRequest.Number, pr.Head.Sha)
+			log.Printf("Received %s on PR #%d, SHA %s", pl.Action, pl.PullRequest.Number, pr.Head.Sha)
 			ch <- &model.DeploymentRequest{
 				URL:      pl.Repository.URL,
 				CloneURL: pl.Repository.CloneURL,
 				Token:    token,
 				Owner:    pl.Repository.Owner.Login,
 				Repo:     pl.Repository.Name,
+				Number:   pl.PullRequest.Number,
 				HeadRef:  pr.Head.Ref,
 				HeadSHA:  pr.Head.Sha,
 				BaseSHA:  pr.Base.Sha,
 			}
+		default:
+			log.Printf("Ignore %s on PR #%d", pl.Action, pl.PullRequest.Number)
 		}
 	}
 }

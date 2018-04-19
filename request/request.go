@@ -2,6 +2,7 @@ package request
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/url"
 	"path"
@@ -82,7 +83,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	}
 
 	// git commit
-	commit, err := w.Commit("Commit message!", &git.CommitOptions{
+	commit, err := w.Commit(fmt.Sprintf("%s at %s", project, sha), &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "Robot",
 			Email: "robot",
