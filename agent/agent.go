@@ -105,7 +105,7 @@ func deploy(req *model.DeploymentRequest) {
 		log.Fatalf("error updating status %v\n", err)
 	}
 
-	r, err := gh.GetRepo(req.CloneURL, req.Token)
+	r, err := gh.GetRepo(ctx, req.CloneURL, req.Token)
 	if err != nil {
 		log.Fatalf("error getting repo %v\n", err)
 	}

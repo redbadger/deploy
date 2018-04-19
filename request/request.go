@@ -28,7 +28,8 @@ func buildCloneURL(githubURL, org, repo string) string {
 // Request raises a PR against the deploy repo with the configuration to be deployed
 func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
 	// Create in-mem FS w/ cloned deployments repo
-	r, err := gh.GetRepo(buildCloneURL(githubURL, org, repo), token)
+	ctx := context.Background()
+	r, err := gh.GetRepo(ctx, buildCloneURL(githubURL, org, repo), token)
 	if err != nil {
 		log.Fatalln(err) // err has enough info
 	}
@@ -114,14 +115,14 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	}
 
 	// Raise PR ["deployments" repo] with requested changes
-	client, err := gh.NewClient(context.Background(), apiURL, token)
+	client, err := gh.NewClient(ctx, apiURL, token)
 
 	title := project + " deployment request"
 	head := branchName
 	base := "master"
 	body := "Deployment request for " + project + " at " + sha
 
-	pr, _, err := client.PullRequests.Create(context.Background(), org, repo, &github.NewPullRequest{
+	pr, _, err := client.PullRequests.Create(ctx, org, repo, &github.NewPullRequest{
 		Title: &title,
 		Head:  &head,
 		Base:  &base,
