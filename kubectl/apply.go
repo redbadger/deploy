@@ -8,16 +8,18 @@ import (
 )
 
 // Apply passes the supplied manifests to the stdin of `kubectl apply -f -`
-func Apply(namespace, manifests string) (err error) {
-	cmd := exec.Command("kubectl", "--namespace", namespace, "apply", "-f", "-")
+func Apply(namespace, manifests string, isDryRun bool) (output string, err error) {
+	var args = []string{"--namespace", namespace, "apply", "-f", "-"}
+	if isDryRun {
+		args = append(args, "--dry-run")
+	}
+	cmd := exec.Command("kubectl", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdin = strings.NewReader(manifests)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	out, err := cmd.CombinedOutput()
+	output = string(out)
 	if err != nil {
-		err = fmt.Errorf("Cannot run kubectl: %v", err)
-		return
+		return output, fmt.Errorf("Cannot run kubectl: %v", err)
 	}
 	return
 }
