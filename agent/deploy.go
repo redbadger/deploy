@@ -94,10 +94,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	update := updater(
-		ctx, client, "deploy",
-		req.Owner, req.Repo, int(req.Number), req.HeadSHA,
-	)
+	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), req.HeadSHA)
 
 	msg := "Deployment started!"
 	err = update("pending", msg, msg)
@@ -113,13 +110,12 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	// merge master
 	log.Println("merging master")
 	head := "master"
-	commit, _, err := client.Repositories.Merge(
-		ctx, req.Owner, req.Repo,
-		&github.RepositoryMergeRequest{
-			Base:          &req.HeadRef, // this PR HEAD
-			Head:          &head,
-			CommitMessage: nil,
-		})
+	mergeReq := github.RepositoryMergeRequest{
+		Base:          &req.HeadRef, // this PR HEAD
+		Head:          &head,
+		CommitMessage: nil,
+	}
+	commit, _, err := client.Repositories.Merge(ctx, req.Owner, req.Repo, &mergeReq)
 	if err != nil {
 		return fmt.Errorf("error merging master: %v", err)
 	}
