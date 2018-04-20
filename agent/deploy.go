@@ -175,6 +175,10 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	if err != nil {
 		return
 	}
+	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", req.HeadRef))
+	if err != nil {
+		return
+	}
 	return
 }
 
