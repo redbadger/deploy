@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/google/go-github/github"
@@ -198,6 +199,7 @@ func keys(m map[string]string) (keys []string) {
 		keys[i] = k
 		i++
 	}
+	sort.Strings(keys)
 	return
 }
 
@@ -205,8 +207,8 @@ var sub = regexp.MustCompile("\n")
 
 func formatResults(in map[string]string) (out string) {
 	out = ""
-	for k, v := range in {
-		out += fmt.Sprintf("* %s:\n\t%v\n\n", k, sub.ReplaceAllString(v, "\n\t"))
+	for _, k := range keys(in) {
+		out += fmt.Sprintf("* %s:\n\t%v\n\n", k, sub.ReplaceAllString(in[k], "\n\t"))
 	}
 	return
 }

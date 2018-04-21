@@ -1,6 +1,9 @@
 package agent
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func Test_formatResults(t *testing.T) {
 	type args struct {
@@ -21,7 +24,7 @@ func Test_formatResults(t *testing.T) {
 		{
 			"two keys",
 			args{
-				map[string]string{"one": "test1", "two": "test2"},
+				map[string]string{"two": "test2", "one": "test1"},
 			},
 			"* one:\n\ttest1\n\n* two:\n\ttest2\n\n",
 		},
@@ -37,6 +40,33 @@ func Test_formatResults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if gotOut := formatResults(tt.args.in); gotOut != tt.wantOut {
 				t.Errorf("formatResults() = %v, want %v", gotOut, tt.wantOut)
+			}
+		})
+	}
+}
+
+func Test_keys(t *testing.T) {
+	type args struct {
+		m map[string]string
+	}
+	tests := []struct {
+		name     string
+		args     args
+		wantKeys []string
+	}{
+		{
+			"gets sorted keys",
+			args{
+				map[string]string{"b": "2", "a": "1"},
+			},
+			[]string{"a", "b"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotKeys := keys(tt.args.m); !reflect.DeepEqual(gotKeys, tt.wantKeys) {
+				t.Errorf("keys() = %v, want %v", gotKeys, tt.wantKeys)
 			}
 		})
 	}
