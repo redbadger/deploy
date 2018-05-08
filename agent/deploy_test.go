@@ -88,7 +88,7 @@ func Test_joinManifests(t *testing.T) {
 				"my-namespace",
 				[]string{"a\n", "b\n"},
 			},
-			"---\napiVersion: 1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n\n---\nb\n",
+			"---\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n\n---\nb\n",
 		},
 		{
 			"manifests don't have final newlines",
@@ -96,7 +96,7 @@ func Test_joinManifests(t *testing.T) {
 				"my-namespace",
 				[]string{"a", "b"},
 			},
-			"---\napiVersion: 1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n---\nb",
+			"---\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n---\nb",
 		},
 	}
 	for _, tt := range tests {

@@ -24,7 +24,7 @@ import (
 
 var patterns = []string{"*.yml", "*.yaml"}
 var namespaceTemplate = `---
-apiVersion: 1
+apiVersion: v1
 kind: Namespace
 metadata:
   name: %s`
