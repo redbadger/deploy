@@ -27,7 +27,7 @@ func buildCloneURL(githubURL, org, repo string) string {
 }
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string) {
+func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token string) {
 	// Create in-mem FS w/ cloned deployments repo
 	ctx := context.Background()
 	r, err := gh.GetRepo(ctx, buildCloneURL(githubURL, org, repo), token)
@@ -58,7 +58,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	})
 
 	// Delete destination directory
-	destDir := "/" + project
+	destDir := "/" + namespace
 	info, err := w.Filesystem.Lstat(destDir)
 	if err == nil && info.IsDir() {
 		err = filesystem.Remove(destDir, w.Filesystem)
@@ -67,9 +67,8 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 		}
 	}
 
-	// Copy all of sourceDir in to our in-mem FS
-	sourceDir := path.Join(stacksDir, project)
-	err = filesystem.Copy(sourceDir, destDir, w.Filesystem)
+	// Copy all of manifestDir in to our in-mem FS
+	err = filesystem.Copy(manifestDir, destDir, w.Filesystem)
 	if err != nil {
 		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
 	}
@@ -83,7 +82,7 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	}
 
 	// git commit
-	commit, err := w.Commit(fmt.Sprintf("%s at %s", project, sha), &git.CommitOptions{
+	commit, err := w.Commit(fmt.Sprintf("%s at %s", namespace, sha), &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "Robot",
 			Email: "robot",
@@ -118,10 +117,10 @@ func Request(stacksDir, project, sha, githubURL, apiURL, org, repo, token string
 	// Raise PR ["deployments" repo] with requested changes
 	client, err := gh.NewClient(ctx, apiURL, token)
 
-	title := project + " deployment request"
+	title := namespace + " deployment request"
 	head := branchName
 	base := "master"
-	body := "Deployment request for " + project + " at " + sha
+	body := "Deployment request for " + namespace + " at " + sha
 
 	pr, _, err := client.PullRequests.Create(ctx, org, repo, &github.NewPullRequest{
 		Title: &title,
