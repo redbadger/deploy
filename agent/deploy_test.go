@@ -74,8 +74,8 @@ func Test_keys(t *testing.T) {
 
 func Test_joinManifests(t *testing.T) {
 	type args struct {
-		manifests []string
 		namespace string
+		manifests []string
 	}
 	tests := []struct {
 		name string
@@ -85,23 +85,23 @@ func Test_joinManifests(t *testing.T) {
 		{
 			"joins manifests and puts namespace manifest in front",
 			args{
-				[]string{"a\n", "b\n"},
 				"my-namespace",
+				[]string{"a\n", "b\n"},
 			},
 			"---\napiVersion: 1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n\n---\nb\n",
 		},
 		{
 			"manifests don't have final newlines",
 			args{
-				[]string{"a", "b"},
 				"my-namespace",
+				[]string{"a", "b"},
 			},
 			"---\napiVersion: 1\nkind: Namespace\nmetadata:\n  name: my-namespace\n---\na\n---\nb",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := joinManifests(tt.args.manifests, tt.args.namespace); got != tt.want {
+			if got := joinManifests(tt.args.namespace, tt.args.manifests); got != tt.want {
 				t.Errorf("joinManifests() = %v, want %v", got, tt.want)
 			}
 		})

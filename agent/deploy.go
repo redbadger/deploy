@@ -158,7 +158,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 			return fmt.Errorf("error walking filesystem %v", err)
 		}
 		if len(contents) > 0 {
-			manifests := joinManifests(contents, dir)
+			manifests := joinManifests(dir, contents)
 			out, err := apply(dir, manifests)
 			if err != nil {
 				msg := fmt.Sprintf("deployment of %s failed: %v", dir, err)
@@ -192,7 +192,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 // By prepending a default namespace template we will loose any metadata
 // on existing namespaces. We need to find a solution to this when it
 // becomes a problem.
-func joinManifests(manifests []string, namespace string) string {
+func joinManifests(namespace string, manifests []string) string {
 	namespaceManifest := fmt.Sprintf(namespaceTemplate, namespace)
 	manifests = append([]string{namespaceManifest}, manifests...)
 	return strings.Join(manifests, "\n---\n")
