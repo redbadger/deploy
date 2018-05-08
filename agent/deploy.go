@@ -23,6 +23,11 @@ import (
 )
 
 var patterns = []string{"*.yml", "*.yaml"}
+var namespaceTemplate = `---
+apiVersion: 1
+kind: Namespace
+metadata:
+  name: %s`
 
 func visit(files *[]string) filesystem.WalkFunc {
 	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
@@ -153,7 +158,8 @@ func deploy(req *model.DeploymentRequest) (err error) {
 			return fmt.Errorf("error walking filesystem %v", err)
 		}
 		if len(contents) > 0 {
-			out, err := apply(dir, strings.Join(contents, "---\n"))
+			manifests := joinManifests(contents, dir)
+			out, err := apply(dir, manifests)
 			if err != nil {
 				msg := fmt.Sprintf("deployment of %s failed: %v", dir, err)
 				comment := fmt.Sprintf("Deployment failed!\n%s", out)
@@ -183,10 +189,19 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	return
 }
 
-func apply(dir, manifest string) (out string, err error) {
-	out, err = kubectl.Apply(dir, manifest, true)
+// By prepending a default namespace template we will loose any metadata
+// on existing namespaces. We need to find a solution to this when it
+// becomes a problem.
+func joinManifests(manifests []string, namespace string) string {
+	namespaceManifest := fmt.Sprintf(namespaceTemplate, namespace)
+	manifests = append([]string{namespaceManifest}, manifests...)
+	return strings.Join(manifests, "\n---\n")
+}
+
+func apply(namespace, manifest string) (out string, err error) {
+	out, err = kubectl.Apply(namespace, manifest, true)
 	if err == nil {
-		out, err = kubectl.Apply(dir, manifest, false)
+		out, err = kubectl.Apply(namespace, manifest, false)
 	}
 	return
 }
