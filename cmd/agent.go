@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/redbadger/deploy/agent"
 	"github.com/redbadger/deploy/constants"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -31,10 +30,10 @@ Run deploy as an agent:
 	Example: `deploy agent &`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.SecretEnvVar) {
-			log.Fatalf("environment variable %s is not exported.\n", constants.SecretEnvVar)
+			log.WithField("variable", constants.SecretEnvVar).Fatalf("environment variable is not exported")
 		}
 		if !viper.IsSet(constants.TokenEnvVar) {
-			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
+			log.WithField("variable", constants.TokenEnvVar).Fatalf("environment variable is not exported")
 		}
 
 		secret = viper.GetString(constants.SecretEnvVar)
