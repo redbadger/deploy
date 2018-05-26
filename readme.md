@@ -24,7 +24,7 @@ This is an experiment to demonstrate how a CI/CD system might deploy to environm
 TODO:
 
 1.  Implement a mark-and-sweep garbage collector, similar to [`kubecfg`](https://github.com/ksonnet/kubecfg). Currently any removed manifests will not result in the resources being removed from the cluster.
-1.  Implement an image resolver, similar to [`kubecfg`](https://github.com/ksonnet/kubecfg). This allows idempotent deploys even for images whose tags have changed but their content hasn't (e.g. if you're using a monorepo and the SHA is used as the tag).
+1.  The agent could periodically check that the cluster configuration and the master branch of the github repo are in sync, reporting any differences to a channel (possibly slack).
 
 Note: we can't currently use [`kubecfg`](https://github.com/ksonnet/kubecfg) as it stands, because it doesn't support accepting manifests from `stdin` (and as there are no file extensions to look at, it wouldn't know whether they were `yaml`, `json` or `jsonnet` anyway). We could raise a PR to add this functionality, or use it as a library. Jury is still out.
 
@@ -105,3 +105,13 @@ Date:   Sat Mar 17 13:50:22 2018 +0000
     Commit message!
 2018/03/17 13:50:26 Pull request #1 raised!
 ```
+
+## To build
+
+1.  Sync dependencies (they have been vendored, see [`/vendor/vendor.json`](vendor/vendor.json), but not checked into github, see [`/.gitignore`](.gitignore)), so use [`govendor`](https://github.com/kardianos/govendor) to sync:
+
+    ```bash
+    govendor sync
+    ```
+
+1.  Install a binary built from your local vendored dependencies: `govendor install +local` or test your repository only: `govendor test +local`
