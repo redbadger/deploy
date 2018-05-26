@@ -3,7 +3,6 @@ package request
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"path"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
+	log "github.com/sirupsen/logrus"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -20,7 +20,7 @@ import (
 func buildCloneURL(githubURL, org, repo string) string {
 	u, err := url.Parse(githubURL)
 	if err != nil {
-		log.Fatalf("cannot parse github URL: %v\n", err)
+		log.WithError(err).Fatal("parsing github URL")
 	}
 	u.Path = path.Join(org, repo+".git")
 	return u.String()
@@ -32,26 +32,26 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	ctx := context.Background()
 	r, err := gh.GetRepo(ctx, buildCloneURL(githubURL, org, repo), token)
 	if err != nil {
-		log.Fatalln(err) // err has enough info
+		log.WithError(err).Fatal() // err has enough info
 	}
 
 	// Create a new branch to the current HEAD
 	headRef, err := r.Head()
 	if err != nil {
-		log.Printf("error getting HEAD, %v", err)
+		log.WithError(err).Error("getting HEAD")
 	}
 	branchName := "deploy-" + sha
 	branchRefName := plumbing.ReferenceName(path.Join("refs", "heads", branchName))
 	ref := plumbing.NewHashReference(branchRefName, headRef.Hash())
 	err = r.Storer.SetReference(ref)
 	if err != nil {
-		log.Printf("error setting reference, %v", err)
+		log.WithError(err).Error("setting reference")
 	}
 
 	// get a working tree and switch to the newly created branch
 	w, err := r.Worktree()
 	if err != nil {
-		log.Fatalf("cannot create worktree from repository! %v", err)
+		log.WithError(err).Fatal("creating worktree from repository")
 	}
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: ref.Hash(),
@@ -63,14 +63,14 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	if err == nil && info.IsDir() {
 		err = filesystem.Remove(destDir, w.Filesystem)
 		if err != nil {
-			log.Fatalf("cannot remove destination directory: %v", err)
+			log.WithError(err).Fatal("removing destination directory")
 		}
 	}
 
 	// Copy all of manifestDir in to our in-mem FS
 	err = filesystem.Copy(manifestDir, destDir, w.Filesystem)
 	if err != nil {
-		log.Fatalf("cannot copy files in to in-mem FS! %v", err)
+		log.WithError(err).Fatal("copying files to in-mem FS")
 	}
 
 	// TODO: resolve; get registry; etc.
@@ -78,7 +78,7 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	// git add -A
 	_, err = w.Add(".")
 	if err != nil {
-		log.Fatalf("cannot 'git add' files! %v", err)
+		log.WithError(err).Fatal("'git add' files")
 	}
 
 	// git commit
@@ -90,20 +90,22 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		},
 	})
 	obj, _ := r.CommitObject(commit)
-	log.Printf("commit obj: %v", obj)
+	log.WithField("object", obj).Info("commit object")
 
 	err = r.Storer.SetReference(plumbing.NewHashReference(branchRefName, obj.Hash))
 	if err != nil {
-		log.Printf("error setting reference, %v", err)
+		log.WithError(err).Error("setting reference")
+		return
 	}
 
 	// check if commit was empty?
 	if commit == plumbing.ZeroHash {
-		log.Print("ZeroHash commit returned, exiting.")
+		log.Error("ZeroHash commit returned")
 		return
 	}
 	if err != nil {
-		log.Printf("error returned from commit: %v", err)
+		log.WithError(err).Error("commit")
+		return
 	}
 
 	// Push branch to remote
@@ -111,7 +113,8 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
 	})
 	if err != nil {
-		log.Printf("error pushing: %v", err)
+		log.WithError(err).Error("push")
+		return
 	}
 
 	// Raise PR ["deployments" repo] with requested changes
@@ -129,8 +132,8 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		Body:  &body,
 	})
 	if err != nil {
-		log.Printf("Error creating PR: %v", err)
+		log.WithError(err).Error("creating PR")
 	} else {
-		log.Printf("Pull request #%d raised!", *pr.Number)
+		log.WithField("pullRequest", *pr.Number).Info("pull request raised")
 	}
 }

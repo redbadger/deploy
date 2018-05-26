@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/redbadger/deploy/constants"
 	"github.com/redbadger/deploy/request"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -33,7 +32,7 @@ Raise a PR against the cluster repo with the configuration to be deployed:
 	Example: `deploy request --namespace=guestbook --manifestDir=example/guestbook --sha=41e8650 --org=redbadger --repo=cluster-local`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if !viper.IsSet(constants.TokenEnvVar) {
-			log.Fatalf("environment variable %s is not exported.\n", constants.TokenEnvVar)
+			log.WithField("variable", constants.TokenEnvVar).Fatalf("environment variable is not exported")
 		}
 		token = viper.GetString(constants.TokenEnvVar)
 	},

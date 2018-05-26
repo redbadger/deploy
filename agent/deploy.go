@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/github"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-billy.v4"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -45,11 +45,11 @@ func visit(files *[]string) filesystem.WalkFunc {
 			if matched {
 				f, err := fs.Open(path)
 				if err != nil {
-					log.Fatalf("error opening file %v\n", err)
+					log.WithError(err).Fatal("opening file")
 				}
 				t, err := ioutil.ReadAll(f)
 				if err != nil {
-					log.Fatalf("cannot read file %v\n", err)
+					log.WithError(err).Fatal("reading file")
 				}
 				ts := string(t)
 				if !strings.HasSuffix(ts, "\n") {
@@ -66,7 +66,10 @@ func updater(
 	ctx context.Context, client *github.Client, context, owner, repo string, number int, ref string,
 ) func(state, msg, comment string) (err error) {
 	return func(state, msg, comment string) (err error) {
-		log.Printf("%s: %s", state, msg)
+		log.WithFields(log.Fields{
+			"state":   state,
+			"message": msg,
+		}).Info("updating github")
 		status := github.RepoStatus{
 			State:       &state,
 			Description: &msg,
@@ -114,7 +117,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	}
 
 	// merge master
-	log.Println("merging master")
+	log.Info("merging master")
 	head := "master"
 	mergeReq := github.RepositoryMergeRequest{
 		Base:          &req.HeadRef, // this PR HEAD
@@ -151,7 +154,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 
 	succeeded := make(map[string]string)
 	for _, dir := range changedDirs {
-		log.Printf("Walking %s\n", dir)
+		log.WithField("directory", dir).Info("Walking dir")
 		var contents []string
 		err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
 		if err != nil {

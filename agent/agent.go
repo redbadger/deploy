@@ -1,10 +1,9 @@
 package agent
 
 import (
-	"fmt"
-	"log"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v3"
 	webhook "gopkg.in/go-playground/webhooks.v3/github"
 
@@ -18,7 +17,7 @@ func Agent(port uint16, path, token, secret string) {
 
 	err := webhooks.Run(hook, ":"+strconv.FormatUint(uint64(port), 10), path)
 	if err != nil {
-		log.Fatalln(fmt.Errorf("cannot listen for webhook: %v", err))
+		log.WithError(err).Fatal("listening for webhook")
 	}
 }
 
@@ -26,7 +25,7 @@ func consume(ch chan *model.DeploymentRequest) {
 	for {
 		err := deploy(<-ch)
 		if err != nil {
-			log.Printf("error executing deployment request %v", err)
+			log.WithError(err).Error("executing deployment request")
 		}
 	}
 }
@@ -36,10 +35,14 @@ func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
 	go consume(ch)
 	return func(payload interface{}, header webhooks.Header) {
 		pl := payload.(webhook.PullRequestPayload)
+		myLog := log.WithFields(log.Fields{
+			"action":      pl.Action,
+			"pullRequest": pl.PullRequest.Number,
+		})
 		switch pl.Action {
 		case "opened", "synchronize":
 			pr := pl.PullRequest
-			log.Printf("Received %s on PR #%d, SHA %s", pl.Action, pl.PullRequest.Number, pr.Head.Sha)
+			myLog.WithField("sha", pr.Head.Sha).Info("actioning webhook")
 			ch <- &model.DeploymentRequest{
 				URL:      pl.Repository.URL,
 				CloneURL: pl.Repository.CloneURL,
@@ -52,7 +55,7 @@ func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
 				BaseSHA:  pr.Base.Sha,
 			}
 		default:
-			log.Printf("Ignore %s on PR #%d", pl.Action, pl.PullRequest.Number)
+			myLog.Info("webhook ignored")
 		}
 	}
 }
