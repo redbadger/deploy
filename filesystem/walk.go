@@ -4,18 +4,25 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"gopkg.in/src-d/go-billy.v4"
 )
 
 // readDirNames reads the directory named by dirname and returns
 // a sorted list of directory entries.
-func readDirNames(fs billy.Filesystem, dirname string) ([]os.FileInfo, error) {
-	names, err := fs.ReadDir(dirname)
+func readDirNames(fs billy.Filesystem, dirname string) ([]string, error) {
+	files, err := fs.ReadDir(dirname)
 	if err != nil {
 		return nil, err
 	}
-	// sort.Strings(names)
+
+	names := make([]string, len(files))
+	for i, file := range files {
+		names[i] = file.Name()
+	}
+
+	sort.Strings(names)
 	return names, nil
 }
 
@@ -46,7 +53,7 @@ func walk(fs billy.Filesystem, path string, info os.FileInfo, walkFn WalkFunc) e
 		return walkFn(fs, path, info, nil)
 	}
 
-	infos, err := readDirNames(fs, path)
+	names, err := readDirNames(fs, path)
 	err1 := walkFn(fs, path, info, err)
 	// If err != nil, walk can't walk into this directory.
 	// err1 != nil means walkFn want walk to skip this directory or stop walking.
@@ -59,8 +66,8 @@ func walk(fs billy.Filesystem, path string, info os.FileInfo, walkFn WalkFunc) e
 		return err1
 	}
 
-	for _, info := range infos {
-		filename := filepath.Join(path, info.Name())
+	for _, name := range names {
+		filename := filepath.Join(path, name)
 		fileInfo, err := fs.Lstat(filename)
 		if err != nil {
 			if err := walkFn(fs, filename, fileInfo, err); err != nil && err != ErrSkipDir {
@@ -75,6 +82,7 @@ func walk(fs billy.Filesystem, path string, info os.FileInfo, walkFn WalkFunc) e
 			}
 		}
 	}
+
 	return nil
 }
 
