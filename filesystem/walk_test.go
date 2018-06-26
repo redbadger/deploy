@@ -3,11 +3,11 @@ package filesystem_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
-	"gopkg.in/src-d/go-billy.v4"
-
 	"github.com/redbadger/deploy/filesystem"
+	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 )
 
@@ -20,19 +20,19 @@ type Node struct {
 var tree = &Node{
 	"testdata",
 	[]*Node{
-		{"a", nil, 0},
-		{"b", []*Node{}, 0},
+		{"b", nil, 0},
+		{"a", []*Node{}, 0},
 		{"c", nil, 0},
 		{
 			"d",
 			[]*Node{
-				{"x", nil, 0},
-				{"y", []*Node{}, 0},
+				{"y", nil, 0},
+				{"x", []*Node{}, 0},
 				{
 					"z",
 					[]*Node{
-						{"u", nil, 0},
 						{"v", nil, 0},
+						{"u", nil, 0},
 					},
 					0,
 				},
@@ -101,12 +101,26 @@ func checkMarks(fs billy.Filesystem, t *testing.T, report bool) {
 	})
 }
 
-func TestWalk(t *testing.T) {
+func Test_Walk(t *testing.T) {
 	fs := memfs.New()
 	makeTree(fs, t)
 	errors := make([]error, 0, 10)
 	clear := true
+	expectedFiles := []string{
+		"testdata",
+		"testdata/a",
+		"testdata/b",
+		"testdata/c",
+		"testdata/d",
+		"testdata/d/x",
+		"testdata/d/y",
+		"testdata/d/z",
+		"testdata/d/z/u",
+		"testdata/d/z/v",
+	}
+	files := []string{}
 	markFn := func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
+		files = append(files, path)
 		return mark(fs, info, err, &errors, clear)
 	}
 	// Expect no errors.
@@ -116,6 +130,9 @@ func TestWalk(t *testing.T) {
 	}
 	if len(errors) != 0 {
 		t.Fatalf("unexpected errors: %s", errors)
+	}
+	if !reflect.DeepEqual(files, expectedFiles) {
+		t.Fatalf("got file list %v, want %v", files, expectedFiles)
 	}
 	checkMarks(fs, t, true)
 	errors = errors[0:0]
