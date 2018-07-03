@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -48,50 +49,26 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
-	err = git(tmpDir, "clone",
+	git(tmpDir, "clone",
 		"--config", config,
 		cloneURL.String(),
 		srcDir,
 	)
-	if err != nil {
-		log.WithError(err).Fatal("cloning cluster repository")
-	}
-
-	err = git(srcDir, "checkout",
-		"-b", branchName,
-	)
-	if err != nil {
-		log.WithError(err).Fatalf("creating new branch: %s", branchName)
-	}
-
-	err = git(srcDir, "rm", "-r", namespace)
-	if err != nil {
-		log.WithError(err).Fatalf("removing: %s", namespace)
-	}
+	git(srcDir, "checkout", "-b", branchName)
+	git(srcDir, "rm", "-r", namespace)
 
 	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
 		log.WithError(err).Fatal("copying manifests to repo")
 	}
 
-	err = git(srcDir, "add", "--all")
-	if err != nil {
-		log.WithError(err).Fatalf("adding: %s", namespace)
-	}
-
-	err = git(srcDir, "commit",
+	git(srcDir, "add", "--all")
+	git(srcDir, "commit",
 		"--message", fmt.Sprintf("%s at %s", namespace, sha),
 		"--author", "Robot <robot>",
 		"--allow-empty",
 	)
-	if err != nil {
-		log.WithError(err).Fatal("commit")
-	}
-
-	err = git(srcDir, "push", "origin", branchName)
-	if err != nil {
-		log.WithError(err).Fatal("push")
-	}
+	git(srcDir, "push", "origin", branchName)
 
 	// Raise PR ["deployments" repo] with requested changes
 
@@ -116,11 +93,19 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	}
 }
 
-func git(workingDir string, args ...string) (err error) {
+func git(workingDir string, args ...string) {
 	log.Info("git", args)
 	cmd := exec.Command("git", args...)
 	cmd.Env = os.Environ()
 	cmd.Dir = workingDir
-	err = cmd.Run()
-	return
+	var o, e bytes.Buffer
+	cmd.Stderr = &e
+	cmd.Stdout = &o
+	err := cmd.Run()
+	if err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"stdout": o.String(),
+			"stderr": e.String(),
+		}).Fatal()
+	}
 }
