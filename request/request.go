@@ -51,6 +51,8 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	srcDir := path.Join(tmpDir, "src")
 	git(tmpDir, "clone",
 		"--config", config,
+		"--config", "user.email=robot",
+		"--config", "user.name=Robot",
 		cloneURL.String(),
 		srcDir,
 	)
@@ -65,7 +67,6 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	git(srcDir, "add", "--all")
 	git(srcDir, "commit",
 		"--message", fmt.Sprintf("%s at %s", namespace, sha),
-		"--author", "Robot <robot>",
 		"--allow-empty",
 	)
 	git(srcDir, "push", "origin", branchName)
