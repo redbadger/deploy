@@ -122,8 +122,5 @@ func git(workingDir string, args ...string) (err error) {
 	cmd.Env = os.Environ()
 	cmd.Dir = workingDir
 	err = cmd.Run()
-	if err != nil {
-		log.WithError(err).Error("executing git with args: %s", args)
-	}
 	return
 }
