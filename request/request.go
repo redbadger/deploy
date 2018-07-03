@@ -3,121 +3,98 @@ package request
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
+	"os/exec"
 	"path"
-	"time"
 
 	"github.com/google/go-github/github"
-	"github.com/redbadger/deploy/filesystem"
 	gh "github.com/redbadger/deploy/github"
 	log "github.com/sirupsen/logrus"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	gHttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 )
 
-func buildCloneURL(githubURL, org, repo string) string {
+func buildCloneURL(githubURL, org, repo string) *url.URL {
 	u, err := url.Parse(githubURL)
 	if err != nil {
 		log.WithError(err).Fatal("parsing github URL")
 	}
 	u.Path = path.Join(org, repo+".git")
-	return u.String()
+	return u
 }
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
 func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token string) {
-	// Create in-mem FS w/ cloned deployments repo
-	ctx := context.Background()
-	r, err := gh.GetRepo(ctx, buildCloneURL(githubURL, org, repo), token)
+	branchName := fmt.Sprintf("deploy-%s", sha)
+	tmpDir, err := ioutil.TempDir("/tmp", branchName)
 	if err != nil {
-		log.WithError(err).Fatal() // err has enough info
+		log.WithError(err).Fatal("creating tmp dir")
 	}
 
-	// Create a new branch to the current HEAD
-	headRef, err := r.Head()
+	defer os.RemoveAll(tmpDir)
+
+	cloneURL := buildCloneURL(githubURL, org, repo)
+	authURL := url.URL{
+		Scheme: cloneURL.Scheme,
+		User:   url.UserPassword("dummy", token),
+		Host:   cloneURL.Host,
+	}
+
+	credFile := path.Join(tmpDir, "git-credentials")
+	err = ioutil.WriteFile(credFile, []byte(authURL.String()), 0600)
 	if err != nil {
-		log.WithError(err).Error("getting HEAD")
+		log.WithError(err).Fatal("writing credentials file")
 	}
-	branchName := "deploy-" + sha
-	branchRefName := plumbing.ReferenceName(path.Join("refs", "heads", branchName))
-	ref := plumbing.NewHashReference(branchRefName, headRef.Hash())
-	err = r.Storer.SetReference(ref)
+
+	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
+	srcDir := path.Join(tmpDir, "src")
+	err = git(tmpDir, "clone",
+		"--config", config,
+		cloneURL.String(),
+		srcDir,
+	)
 	if err != nil {
-		log.WithError(err).Error("setting reference")
+		log.WithError(err).Fatal("cloning cluster repository")
 	}
 
-	// get a working tree and switch to the newly created branch
-	w, err := r.Worktree()
+	err = git(srcDir, "checkout",
+		"-b", branchName,
+	)
 	if err != nil {
-		log.WithError(err).Fatal("creating worktree from repository")
-	}
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash: ref.Hash(),
-	})
-
-	// Delete destination directory
-	destDir := "/" + namespace
-	info, err := w.Filesystem.Lstat(destDir)
-	if err == nil && info.IsDir() {
-		err = filesystem.Remove(destDir, w.Filesystem)
-		if err != nil {
-			log.WithError(err).Fatal("removing destination directory")
-		}
+		log.WithError(err).Fatalf("creating new branch: %s", branchName)
 	}
 
-	// Copy all of manifestDir in to our in-mem FS
-	err = filesystem.Copy(manifestDir, destDir, w.Filesystem)
+	err = git(srcDir, "rm", "-r", namespace)
 	if err != nil {
-		log.WithError(err).Fatal("copying files to in-mem FS")
+		log.WithError(err).Fatalf("removing: %s", namespace)
 	}
 
-	// TODO: resolve; get registry; etc.
-
-	// git add -A
-	_, err = w.Add(".")
+	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
-		log.WithError(err).Fatal("'git add' files")
+		log.WithError(err).Fatal("copying manifests to repo")
 	}
 
-	// git commit
-	commit, err := w.Commit(fmt.Sprintf("%s at %s", namespace, sha), &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Robot",
-			Email: "robot",
-			When:  time.Now(),
-		},
-	})
-	obj, _ := r.CommitObject(commit)
-	log.WithField("object", obj).Info("commit object")
-
-	err = r.Storer.SetReference(plumbing.NewHashReference(branchRefName, obj.Hash))
+	err = git(srcDir, "add", "--all")
 	if err != nil {
-		log.WithError(err).Error("setting reference")
-		return
+		log.WithError(err).Fatalf("adding: %s", namespace)
 	}
 
-	// check if commit was empty?
-	if commit == plumbing.ZeroHash {
-		log.Error("ZeroHash commit returned")
-		return
-	}
+	err = git(srcDir, "commit",
+		"--message", fmt.Sprintf("%s at %s", namespace, sha),
+		"--author", "Robot <robot>",
+	)
 	if err != nil {
-		log.WithError(err).Error("commit")
-		return
+		log.WithError(err).Fatal("commit")
 	}
 
-	// Push branch to remote
-	err = r.Push(&git.PushOptions{
-		Auth: &gHttp.BasicAuth{Username: "none", Password: token},
-	})
+	err = git(srcDir, "push", "origin", branchName)
 	if err != nil {
-		log.WithError(err).Error("push")
-		return
+		log.WithError(err).Fatal("push")
 	}
 
 	// Raise PR ["deployments" repo] with requested changes
+
+	ctx := context.Background()
 	client, err := gh.NewClient(ctx, apiURL, token)
 
 	title := namespace + " deployment request"
@@ -136,4 +113,16 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	} else {
 		log.WithField("pullRequest", *pr.Number).Info("pull request raised")
 	}
+}
+
+func git(workingDir string, args ...string) (err error) {
+	log.Info("git", args)
+	cmd := exec.Command("git", args...)
+	cmd.Env = os.Environ()
+	cmd.Dir = workingDir
+	err = cmd.Run()
+	if err != nil {
+		log.WithError(err).Error("executing git with args: %s", args)
+	}
+	return
 }
