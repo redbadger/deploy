@@ -82,6 +82,7 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	err = git(srcDir, "commit",
 		"--message", fmt.Sprintf("%s at %s", namespace, sha),
 		"--author", "Robot <robot>",
+		"--allow-empty",
 	)
 	if err != nil {
 		log.WithError(err).Fatal("commit")
