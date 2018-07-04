@@ -94,7 +94,10 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), req.HeadSHA)
+	pr, _, err := client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
+
+	headSha := *pr.Head.SHA
+	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), headSha)
 
 	msg := "Deployment started!"
 	err = update("pending", msg, msg)
@@ -104,10 +107,11 @@ func deploy(req *model.DeploymentRequest) (err error) {
 
 	// merge master
 	log.Info("merging master")
-	head := "master"
+	headRef := *pr.Head.Ref
+	master := "master"
 	mergeReq := github.RepositoryMergeRequest{
-		Base:          &req.HeadRef, // this PR HEAD
-		Head:          &head,
+		Base:          &headRef,
+		Head:          &master,
 		CommitMessage: nil,
 	}
 	commit, _, err := client.Repositories.Merge(ctx, req.Owner, req.Repo, &mergeReq)
@@ -121,7 +125,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	tmpDir, err := ioutil.TempDir("/tmp", req.HeadRef)
+	tmpDir, err := ioutil.TempDir("/tmp", headRef)
 	if err != nil {
 		log.WithError(err).Fatal("creating tmp dir")
 	}
@@ -147,13 +151,14 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
 	git.Run(tmpDir, "clone",
-		"--branch", req.HeadRef,
+		"--branch", headRef,
 		"--config", config,
 		cloneURL.String(),
 		srcDir,
 	)
 
-	changedDirs, err := git.GetChangedDirectories(srcDir, req.BaseSHA)
+	baseSHA := *pr.Base.SHA
+	changedDirs, err := git.GetChangedDirectories(srcDir, baseSHA)
 	if err != nil {
 		return fmt.Errorf("error identifying changed top level directories: %v", err)
 	}
@@ -191,7 +196,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", req.HeadRef))
+	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", headRef))
 	if err != nil {
 		return
 	}

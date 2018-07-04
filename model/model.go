@@ -14,10 +14,4 @@ type DeploymentRequest struct {
 	Repo string
 	// PR Number
 	Number int64
-	// the Branch name of the HEAD
-	HeadRef string
-	// the SHA of the HEAD
-	HeadSHA string
-	// the SHA of the BASE
-	BaseSHA string
 }
