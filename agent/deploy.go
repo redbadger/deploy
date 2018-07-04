@@ -95,6 +95,9 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	}
 
 	pr, _, err := client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
+	if err != nil {
+		return
+	}
 
 	headSha := *pr.Head.SHA
 	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), headSha)
