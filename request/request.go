@@ -24,7 +24,10 @@ func buildCloneURL(githubURL, org, repo string) *url.URL {
 }
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token string) {
+func Request(
+	namespace, manifestDir, sha string, labels []string,
+	githubURL, apiURL, org, repo, token string,
+) {
 	branchName := fmt.Sprintf("deploy-%s", sha)
 	tmpDir, err := ioutil.TempDir("/tmp", branchName)
 	if err != nil {
@@ -64,8 +67,16 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 	}
 
 	git.Run(srcDir, "add", "--all")
+
+	msg := fmt.Sprintf("%s at %s", namespace, sha)
+	if len(labels) > 0 {
+		msg = fmt.Sprintf("%s\n", msg)
+		for _, l := range labels {
+			msg = fmt.Sprintf("%s\n%s", msg, l)
+		}
+	}
 	git.Run(srcDir, "commit",
-		"--message", fmt.Sprintf("%s at %s", namespace, sha),
+		"--message", msg,
 		"--allow-empty",
 	)
 	git.Run(srcDir, "push", "origin", branchName)
