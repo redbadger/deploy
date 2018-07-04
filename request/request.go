@@ -57,7 +57,7 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		srcDir,
 	)
 	git(srcDir, "checkout", "-b", branchName)
-	git(srcDir, "rm", "-r", namespace)
+	git(srcDir, "rm", "-r", "--ignore-unmatch", namespace)
 
 	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
