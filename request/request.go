@@ -1,16 +1,15 @@
 package request
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/google/go-github/github"
+	"github.com/redbadger/deploy/git"
 	gh "github.com/redbadger/deploy/github"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,27 +48,27 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
-	git(tmpDir, "clone",
+	git.Run(tmpDir, "clone",
 		"--config", config,
 		"--config", "user.email=robot",
 		"--config", "user.name=Robot",
 		cloneURL.String(),
 		srcDir,
 	)
-	git(srcDir, "checkout", "-b", branchName)
-	git(srcDir, "rm", "-r", namespace)
+	git.Run(srcDir, "checkout", "-b", branchName)
+	git.Run(srcDir, "rm", "-r", namespace)
 
 	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
 		log.WithError(err).Fatal("copying manifests to repo")
 	}
 
-	git(srcDir, "add", "--all")
-	git(srcDir, "commit",
+	git.Run(srcDir, "add", "--all")
+	git.Run(srcDir, "commit",
 		"--message", fmt.Sprintf("%s at %s", namespace, sha),
 		"--allow-empty",
 	)
-	git(srcDir, "push", "origin", branchName)
+	git.Run(srcDir, "push", "origin", branchName)
 
 	// Raise PR ["deployments" repo] with requested changes
 
@@ -91,22 +90,5 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		log.WithError(err).Error("creating PR")
 	} else {
 		log.WithField("pullRequest", *pr.Number).Info("pull request raised")
-	}
-}
-
-func git(workingDir string, args ...string) {
-	log.Info("git", args)
-	cmd := exec.Command("git", args...)
-	cmd.Env = os.Environ()
-	cmd.Dir = workingDir
-	var o, e bytes.Buffer
-	cmd.Stderr = &e
-	cmd.Stdout = &o
-	err := cmd.Run()
-	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"stdout": o.String(),
-			"stderr": e.String(),
-		}).Fatal()
 	}
 }

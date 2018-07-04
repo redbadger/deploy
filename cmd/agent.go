@@ -21,7 +21,7 @@ var agentCmd = &cobra.Command{
 Run deploy as an agent:
 
 1.  watches for PR updates on a webhook
-2.  clones the repo to an in-memory filesystem
+2.  clones the repo to a temporary directory
 3.  checks out the commit SHA
 4.  walks down any top-level directories that contain changes
 5.  gathers yaml files (however they are nested)

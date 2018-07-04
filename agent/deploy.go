@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -12,11 +14,8 @@ import (
 
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/src-d/go-billy.v4"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 
-	"github.com/redbadger/deploy/filesystem"
+	"github.com/redbadger/deploy/git"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
 	"github.com/redbadger/deploy/model"
@@ -29,8 +28,8 @@ kind: Namespace
 metadata:
   name: %s`
 
-func visit(files *[]string) filesystem.WalkFunc {
-	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
+func visit(files *[]string) filepath.WalkFunc {
+	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // can't walk here, but continue walking elsewhere
 		}
@@ -43,19 +42,11 @@ func visit(files *[]string) filesystem.WalkFunc {
 				return err // malformed pattern, this is fatal.
 			}
 			if matched {
-				f, err := fs.Open(path)
-				if err != nil {
-					log.WithError(err).Fatal("opening file")
-				}
-				t, err := ioutil.ReadAll(f)
+				contents, err := ioutil.ReadFile(path)
 				if err != nil {
 					log.WithError(err).Fatal("reading file")
 				}
-				ts := string(t)
-				if !strings.HasSuffix(ts, "\n") {
-					ts += "\n"
-				}
-				*files = append(*files, ts)
+				*files = append(*files, string(contents))
 			}
 		}
 		return nil
@@ -111,11 +102,6 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	r, err := gh.GetRepo(ctx, req.CloneURL, req.Token)
-	if err != nil {
-		return fmt.Errorf("error getting repo %v", err)
-	}
-
 	// merge master
 	log.Info("merging master")
 	head := "master"
@@ -135,19 +121,39 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	w, err := r.Worktree()
+	tmpDir, err := ioutil.TempDir("/tmp", req.HeadRef)
 	if err != nil {
-		return fmt.Errorf("error getting work tree: %v", err)
+		log.WithError(err).Fatal("creating tmp dir")
 	}
 
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(req.HeadSHA),
-	})
+	defer os.RemoveAll(tmpDir)
+
+	cloneURL, err := url.Parse(req.CloneURL)
 	if err != nil {
-		return fmt.Errorf("error checking out %s: %v", req.HeadSHA, err)
+		log.WithError(err).Fatal("parsing github URL")
+	}
+	authURL := url.URL{
+		Scheme: cloneURL.Scheme,
+		User:   url.UserPassword("dummy", req.Token),
+		Host:   cloneURL.Host,
 	}
 
-	changedDirs, err := gh.GetChangedDirectories(r, req.HeadSHA, req.BaseSHA)
+	credFile := path.Join(tmpDir, "git-credentials")
+	err = ioutil.WriteFile(credFile, []byte(authURL.String()), 0600)
+	if err != nil {
+		log.WithError(err).Fatal("writing credentials file")
+	}
+
+	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
+	srcDir := path.Join(tmpDir, "src")
+	git.Run(tmpDir, "clone",
+		"--branch", req.HeadRef,
+		"--config", config,
+		cloneURL.String(),
+		srcDir,
+	)
+
+	changedDirs, err := git.GetChangedDirectories(srcDir, req.BaseSHA)
 	if err != nil {
 		return fmt.Errorf("error identifying changed top level directories: %v", err)
 	}
@@ -156,7 +162,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	for _, dir := range changedDirs {
 		log.WithField("directory", dir).Info("Walking dir")
 		var contents []string
-		err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
+		err = filepath.Walk(dir, visit(&contents))
 		if err != nil {
 			return fmt.Errorf("error walking filesystem %v", err)
 		}

@@ -5,7 +5,7 @@ A cli command, written in Go, that runs in Kubernetes as an agent (`deploy agent
 ### `deploy agent`
 
 1.  watches for PR updates on a webhook
-1.  clones the repo to an in-memory filesystem
+1.  clones the repo to a temporary directory
 1.  checks out the commit SHA
 1.  walks down any top-level directories that contain changes
 1.  gathers yaml files (however they are nested)
@@ -46,19 +46,19 @@ deploy help request
 There is an example deployment (for minikube) in the [`k8s/minikube`](./k8s/minikube) directory.
 The shell script `deploy.sh` does the following:
 
-* creates a **namespace**
-  * with name `deploy-robot`
-* creates a **secret**
-  * from exported `PERSONAL_ACCESS_TOKEN`
-  * from exported `DEPLOY_SECRET`
-* creates other resources:
-  * **serviceAccount**
-    * with name `deploy-robot` - useful for RBAC
-  * **deployment**
-  * **service**
-  * **ingress**
-    * backs onto the nginx ingressController which you can enable with `minikube addons enable ingress`
-    * uses the hostname `deploy.internal` so you may need to add that to your hosts file so it resolves to `${minikube ip}`)
+- creates a **namespace**
+  - with name `deploy-robot`
+- creates a **secret**
+  - from exported `PERSONAL_ACCESS_TOKEN`
+  - from exported `DEPLOY_SECRET`
+- creates other resources:
+  - **serviceAccount**
+    - with name `deploy-robot` - useful for RBAC
+  - **deployment**
+  - **service**
+  - **ingress**
+    - backs onto the nginx ingressController which you can enable with `minikube addons enable ingress`
+    - uses the hostname `deploy.internal` so you may need to add that to your hosts file so it resolves to `${minikube ip}`)
 
 ```bash
 echo "$(minikube ip) deploy.internal" | sudo tee -a /etc/hosts
