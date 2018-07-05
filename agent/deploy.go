@@ -21,6 +21,8 @@ import (
 	"github.com/redbadger/deploy/model"
 )
 
+type updater func(state, msg, comment string) (err error)
+
 var patterns = []string{"*.yml", "*.yaml"}
 var namespaceTemplate = `---
 apiVersion: v1
@@ -53,9 +55,9 @@ func visit(files *[]string) filepath.WalkFunc {
 	}
 }
 
-func updater(
+func createUpdater(
 	ctx context.Context, client *github.Client, context, owner, repo string, number int, ref string,
-) func(state, msg, comment string) (err error) {
+) updater {
 	return func(state, msg, comment string) (err error) {
 		log.WithFields(log.Fields{
 			"state":   state,
@@ -83,7 +85,7 @@ func updater(
 	}
 }
 
-func deploy(req *model.DeploymentRequest) (err error) {
+func handleDeploymentRequest(req *model.DeploymentRequest) (err error) {
 	ctx := context.Background()
 	apiURL, err := APIRoot(req.URL)
 	if err != nil {
@@ -94,14 +96,39 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
+	// we need to get the PR again, because there is a bug in the webhook payload
+	// where the mergeable_state is `clean` when it should be `blocked`
 	pr, _, err := client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
 	if err != nil {
 		return
 	}
 
 	headSha := *pr.Head.SHA
-	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), headSha)
+	update := createUpdater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), headSha)
 
+	state := *pr.MergeableState
+	switch state {
+	case "dirty", "blocked":
+		err = update("error", "Deployment blocked!", "PR is currently blocked so doing nothing")
+		log.WithField("MergeableState", state).Info("pull request is currently blocked so doing nothing")
+		return
+	case "unknown":
+		err = update("error", "Deployment cannot proceed", "Retry not yet implemented")
+		log.WithField("MergeableState", state).Info("periodically fetch")
+		return
+		// TODO implement this
+	case "behind", "unstable", "has_hooks", "clean":
+		log.WithField("MergeableState", state).Info("deploy starting")
+		deploy(ctx, client, req, pr, update)
+		return
+	}
+	return
+}
+
+func deploy(ctx context.Context, client *github.Client,
+	req *model.DeploymentRequest, pr *github.PullRequest,
+	update updater,
+) (err error) {
 	msg := "Deployment started!"
 	err = update("pending", msg, msg)
 	if err != nil {
@@ -189,20 +216,24 @@ func deploy(req *model.DeploymentRequest) (err error) {
 			succeeded[dir] = out
 		}
 	}
+
 	msg = fmt.Sprintf("deployment of %s succeeded", keys(succeeded))
 	comment := fmt.Sprintf("Deployment succeeded!\n%s", formatResults(succeeded))
 	err1 := update("success", msg, comment)
 	if err1 != nil {
 		return
 	}
+
 	_, _, err = client.PullRequests.Merge(ctx, req.Owner, req.Repo, int(req.Number), msg, nil)
 	if err != nil {
 		return
 	}
+
 	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", headRef))
 	if err != nil {
 		return
 	}
+
 	return
 }
 

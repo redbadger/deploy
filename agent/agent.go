@@ -37,7 +37,7 @@ func Agent(port uint16, path, token, secret string) {
 
 func consume(ch chan *model.DeploymentRequest) {
 	for {
-		err := deploy(<-ch)
+		err := handleDeploymentRequest(<-ch)
 		if err != nil {
 			log.WithError(err).Error("executing deployment request")
 		}
