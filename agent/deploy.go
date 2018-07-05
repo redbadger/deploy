@@ -180,7 +180,7 @@ func deploy(ctx context.Context, client *github.Client,
 
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
-	git.Run(tmpDir, "clone",
+	git.MustRun(tmpDir, "clone",
 		"--branch", headRef,
 		"--config", config,
 		cloneURL.String(),

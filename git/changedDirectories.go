@@ -25,7 +25,7 @@ func getTopLevelDirName(path string) string {
 // GetChangedDirectories returns an array of unique top level directory names
 // in which there have been changes
 func GetChangedDirectories(srcDir, baseRef string) (directories []string, err error) {
-	o, e, err := RunE(srcDir, "diff", "--name-only", baseRef)
+	o, e, err := Run(srcDir, "diff", "--name-only", baseRef)
 	if err != nil {
 		return nil, fmt.Errorf("Error in git diff: %v (%s)", err, e)
 	}

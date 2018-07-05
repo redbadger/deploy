@@ -51,22 +51,22 @@ func Request(
 
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
-	git.Run(tmpDir, "clone",
+	git.MustRun(tmpDir, "clone",
 		"--config", config,
 		"--config", "user.email=robot",
 		"--config", "user.name=Robot",
 		cloneURL.String(),
 		srcDir,
 	)
-	git.Run(srcDir, "checkout", "-b", branchName)
-	git.Run(srcDir, "rm", "-r", "--ignore-unmatch", namespace)
+	git.MustRun(srcDir, "checkout", "-b", branchName)
+	git.MustRun(srcDir, "rm", "-r", "--ignore-unmatch", namespace)
 
 	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
 		log.WithError(err).Fatal("copying manifests to repo")
 	}
 
-	git.Run(srcDir, "add", "--all")
+	git.MustRun(srcDir, "add", "--all")
 
 	msg := fmt.Sprintf("%s at %s", namespace, sha)
 	if len(labels) > 0 {
@@ -75,11 +75,11 @@ func Request(
 			msg = fmt.Sprintf("%s\n%s", msg, l)
 		}
 	}
-	git.Run(srcDir, "commit",
+	git.MustRun(srcDir, "commit",
 		"--message", msg,
 		"--allow-empty",
 	)
-	git.Run(srcDir, "push", "origin", branchName)
+	git.MustRun(srcDir, "push", "origin", branchName)
 
 	// Raise PR ["deployments" repo] with requested changes
 
