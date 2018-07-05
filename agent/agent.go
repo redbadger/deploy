@@ -10,10 +10,24 @@ import (
 	"github.com/redbadger/deploy/model"
 )
 
+type logrusWebhookLogger struct{}
+
+func (l *logrusWebhookLogger) Info(msg string) {
+	log.Info(msg)
+}
+
+func (l *logrusWebhookLogger) Error(msg string) {
+	log.Error(msg)
+}
+
+func (l *logrusWebhookLogger) Debug(msg string) {
+	log.Debug(msg)
+}
+
 // Agent runs deploy as a bot
 func Agent(port uint16, path, token, secret string) {
 	hook := webhook.New(&webhook.Config{Secret: secret})
-	hook.RegisterEvents(createPullRequestHandler(token), webhook.PullRequestEvent)
+	hook.RegisterEvents(createWebhookHandler(token), webhook.PullRequestEvent)
 
 	err := webhooks.Run(hook, ":"+strconv.FormatUint(uint64(port), 10), path)
 	if err != nil {
@@ -30,7 +44,9 @@ func consume(ch chan *model.DeploymentRequest) {
 	}
 }
 
-func createPullRequestHandler(token string) func(interface{}, webhooks.Header) {
+func createWebhookHandler(token string) func(interface{}, webhooks.Header) {
+	webhooks.DefaultLog = new(logrusWebhookLogger)
+
 	ch := make(chan *model.DeploymentRequest, 100)
 	go consume(ch)
 	return func(payload interface{}, header webhooks.Header) {
