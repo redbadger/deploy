@@ -197,7 +197,7 @@ func deploy(ctx context.Context, client *github.Client,
 	for _, dir := range changedDirs {
 		log.WithField("directory", dir).Info("Walking dir")
 		var contents []string
-		err = filepath.Walk(dir, visit(&contents))
+		err = filepath.Walk(path.Join(srcDir, dir), visit(&contents))
 		if err != nil {
 			return fmt.Errorf("error walking filesystem %v", err)
 		}
