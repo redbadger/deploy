@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
@@ -98,7 +99,7 @@ func handleDeploymentRequest(req *model.DeploymentRequest) (err error) {
 
 	// we need to get the PR again, because there is a bug in the webhook payload
 	// where the mergeable_state is `clean` when it should be `blocked`
-	pr, _, err := client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
+	pr, err := getPullRequest(ctx, client, req, 3)
 	if err != nil {
 		return
 	}
@@ -113,15 +114,36 @@ func handleDeploymentRequest(req *model.DeploymentRequest) (err error) {
 		log.WithField("MergeableState", state).Info("pull request is currently blocked so doing nothing")
 		return
 	case "unknown":
-		err = update("error", "Deployment cannot proceed", "Retry not yet implemented")
-		log.WithField("MergeableState", state).Info("periodically fetch")
+		err = update("error", "Deployment cannot proceed!", "PR did not change to a known mergeable state in time")
+		log.WithField("MergeableState", state).Info("pull request did not change to another mergeable state in time")
 		return
-		// TODO implement this
 	case "behind", "unstable", "has_hooks", "clean":
 		log.WithField("MergeableState", state).Info("deploy starting")
 		deploy(ctx, client, req, pr, update)
 		return
 	}
+
+	return
+}
+
+func getPullRequest(
+	ctx context.Context,
+	client *github.Client,
+	req *model.DeploymentRequest,
+	remainingAttempts int,
+) (pr *github.PullRequest, err error) {
+	pr, _, err = client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
+	if err != nil {
+		return
+	}
+
+	state := *pr.MergeableState
+	if state == "unknown" && remainingAttempts > 0 {
+		log.Info("pull request has unknown mergeable state; wait 1 second and try again")
+		time.Sleep(1 * time.Second)
+		return getPullRequest(ctx, client, req, remainingAttempts-1)
+	}
+
 	return
 }
 
