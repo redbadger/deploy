@@ -1,16 +1,15 @@
 package request
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/google/go-github/github"
+	"github.com/redbadger/deploy/git"
 	gh "github.com/redbadger/deploy/github"
 	log "github.com/sirupsen/logrus"
 )
@@ -25,7 +24,10 @@ func buildCloneURL(githubURL, org, repo string) *url.URL {
 }
 
 // Request raises a PR against the deploy repo with the configuration to be deployed
-func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token string) {
+func Request(
+	namespace, manifestDir, sha string, labels []string,
+	githubURL, apiURL, org, repo, token string,
+) {
 	branchName := fmt.Sprintf("deploy-%s", sha)
 	tmpDir, err := ioutil.TempDir("/tmp", branchName)
 	if err != nil {
@@ -49,27 +51,35 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 
 	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
 	srcDir := path.Join(tmpDir, "src")
-	git(tmpDir, "clone",
+	git.MustRun(tmpDir, "clone",
 		"--config", config,
 		"--config", "user.email=robot",
 		"--config", "user.name=Robot",
 		cloneURL.String(),
 		srcDir,
 	)
-	git(srcDir, "checkout", "-b", branchName)
-	git(srcDir, "rm", "-r", "--ignore-unmatch", namespace)
+	git.MustRun(srcDir, "checkout", "-b", branchName)
+	git.MustRun(srcDir, "rm", "-r", "--ignore-unmatch", namespace)
 
 	err = copyDir(manifestDir, path.Join(srcDir, namespace))
 	if err != nil {
 		log.WithError(err).Fatal("copying manifests to repo")
 	}
 
-	git(srcDir, "add", "--all")
-	git(srcDir, "commit",
-		"--message", fmt.Sprintf("%s at %s", namespace, sha),
+	git.MustRun(srcDir, "add", "--all")
+
+	msg := fmt.Sprintf("%s at %s", namespace, sha)
+	if len(labels) > 0 {
+		msg = fmt.Sprintf("%s\n", msg)
+		for _, l := range labels {
+			msg = fmt.Sprintf("%s\n%s", msg, l)
+		}
+	}
+	git.MustRun(srcDir, "commit",
+		"--message", msg,
 		"--allow-empty",
 	)
-	git(srcDir, "push", "origin", branchName)
+	git.MustRun(srcDir, "push", "origin", branchName)
 
 	// Raise PR ["deployments" repo] with requested changes
 
@@ -91,22 +101,5 @@ func Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token st
 		log.WithError(err).Error("creating PR")
 	} else {
 		log.WithField("pullRequest", *pr.Number).Info("pull request raised")
-	}
-}
-
-func git(workingDir string, args ...string) {
-	log.Info("git", args)
-	cmd := exec.Command("git", args...)
-	cmd.Env = os.Environ()
-	cmd.Dir = workingDir
-	var o, e bytes.Buffer
-	cmd.Stderr = &e
-	cmd.Stdout = &o
-	err := cmd.Run()
-	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"stdout": o.String(),
-			"stderr": e.String(),
-		}).Fatal()
 	}
 }

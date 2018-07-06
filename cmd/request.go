@@ -16,6 +16,7 @@ var (
 	apiURL      string
 	org         string
 	repo        string
+	labels      []string
 )
 
 var requestCmd = &cobra.Command{
@@ -37,7 +38,7 @@ Raise a PR against the cluster repo with the configuration to be deployed:
 		token = viper.GetString(constants.TokenEnvVar)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		request.Request(namespace, manifestDir, sha, githubURL, apiURL, org, repo, token)
+		request.Request(namespace, manifestDir, sha, labels, githubURL, apiURL, org, repo, token)
 	},
 }
 
@@ -60,4 +61,8 @@ func init() {
 
 	requestCmd.Flags().StringVar(&repo, "repo", "", "Repository name")
 	requestCmd.MarkFlagRequired("repo")
+
+	requestCmd.Flags().StringArrayVarP(&labels, "label", "l", []string{},
+		"Labels to add to commit message (key=value), e.g. --label foo=bar -l baz=quux",
+	)
 }

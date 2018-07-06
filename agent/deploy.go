@@ -4,23 +4,25 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/src-d/go-billy.v4"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 
-	"github.com/redbadger/deploy/filesystem"
+	"github.com/redbadger/deploy/git"
 	gh "github.com/redbadger/deploy/github"
 	"github.com/redbadger/deploy/kubectl"
 	"github.com/redbadger/deploy/model"
 )
+
+type updater func(state, msg, comment string) (err error)
 
 var patterns = []string{"*.yml", "*.yaml"}
 var namespaceTemplate = `---
@@ -29,8 +31,8 @@ kind: Namespace
 metadata:
   name: %s`
 
-func visit(files *[]string) filesystem.WalkFunc {
-	return func(fs billy.Filesystem, path string, info os.FileInfo, err error) error {
+func visit(files *[]string) filepath.WalkFunc {
+	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // can't walk here, but continue walking elsewhere
 		}
@@ -43,28 +45,20 @@ func visit(files *[]string) filesystem.WalkFunc {
 				return err // malformed pattern, this is fatal.
 			}
 			if matched {
-				f, err := fs.Open(path)
-				if err != nil {
-					log.WithError(err).Fatal("opening file")
-				}
-				t, err := ioutil.ReadAll(f)
+				contents, err := ioutil.ReadFile(path)
 				if err != nil {
 					log.WithError(err).Fatal("reading file")
 				}
-				ts := string(t)
-				if !strings.HasSuffix(ts, "\n") {
-					ts += "\n"
-				}
-				*files = append(*files, ts)
+				*files = append(*files, string(contents))
 			}
 		}
 		return nil
 	}
 }
 
-func updater(
+func createUpdater(
 	ctx context.Context, client *github.Client, context, owner, repo string, number int, ref string,
-) func(state, msg, comment string) (err error) {
+) updater {
 	return func(state, msg, comment string) (err error) {
 		log.WithFields(log.Fields{
 			"state":   state,
@@ -92,7 +86,7 @@ func updater(
 	}
 }
 
-func deploy(req *model.DeploymentRequest) (err error) {
+func handleDeploymentRequest(req *model.DeploymentRequest) (err error) {
 	ctx := context.Background()
 	apiURL, err := APIRoot(req.URL)
 	if err != nil {
@@ -103,25 +97,73 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	update := updater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), req.HeadSHA)
+	// we need to get the PR again, because there is a bug in the webhook payload
+	// where the mergeable_state is `clean` when it should be `blocked`
+	pr, err := getPullRequest(ctx, client, req, 3)
+	if err != nil {
+		return
+	}
 
+	headSha := *pr.Head.SHA
+	update := createUpdater(ctx, client, "deploy", req.Owner, req.Repo, int(req.Number), headSha)
+
+	state := *pr.MergeableState
+	switch state {
+	case "dirty", "blocked":
+		err = update("error", "Deployment blocked!", "PR is currently blocked so doing nothing")
+		log.WithField("MergeableState", state).Info("pull request is currently blocked so doing nothing")
+		return
+	case "unknown":
+		err = update("error", "Deployment cannot proceed!", "PR did not change to a known mergeable state in time")
+		log.WithField("MergeableState", state).Info("pull request did not change to another mergeable state in time")
+		return
+	case "behind", "unstable", "has_hooks", "clean":
+		log.WithField("MergeableState", state).Info("deploy starting")
+		deploy(ctx, client, req, pr, update)
+		return
+	}
+
+	return
+}
+
+func getPullRequest(
+	ctx context.Context,
+	client *github.Client,
+	req *model.DeploymentRequest,
+	remainingAttempts int,
+) (pr *github.PullRequest, err error) {
+	pr, _, err = client.PullRequests.Get(ctx, req.Owner, req.Repo, int(req.Number))
+	if err != nil {
+		return
+	}
+
+	state := *pr.MergeableState
+	if state == "unknown" && remainingAttempts > 0 {
+		log.Info("pull request has unknown mergeable state; wait 1 second and try again")
+		time.Sleep(1 * time.Second)
+		return getPullRequest(ctx, client, req, remainingAttempts-1)
+	}
+
+	return
+}
+
+func deploy(ctx context.Context, client *github.Client,
+	req *model.DeploymentRequest, pr *github.PullRequest,
+	update updater,
+) (err error) {
 	msg := "Deployment started!"
 	err = update("pending", msg, msg)
 	if err != nil {
 		return
 	}
 
-	r, err := gh.GetRepo(ctx, req.CloneURL, req.Token)
-	if err != nil {
-		return fmt.Errorf("error getting repo %v", err)
-	}
-
 	// merge master
 	log.Info("merging master")
-	head := "master"
+	headRef := *pr.Head.Ref
+	master := "master"
 	mergeReq := github.RepositoryMergeRequest{
-		Base:          &req.HeadRef, // this PR HEAD
-		Head:          &head,
+		Base:          &headRef,
+		Head:          &master,
 		CommitMessage: nil,
 	}
 	commit, _, err := client.Repositories.Merge(ctx, req.Owner, req.Repo, &mergeReq)
@@ -135,19 +177,40 @@ func deploy(req *model.DeploymentRequest) (err error) {
 		return
 	}
 
-	w, err := r.Worktree()
+	tmpDir, err := ioutil.TempDir("/tmp", headRef)
 	if err != nil {
-		return fmt.Errorf("error getting work tree: %v", err)
+		log.WithError(err).Fatal("creating tmp dir")
 	}
 
-	err = w.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(req.HeadSHA),
-	})
+	defer os.RemoveAll(tmpDir)
+
+	cloneURL, err := url.Parse(req.CloneURL)
 	if err != nil {
-		return fmt.Errorf("error checking out %s: %v", req.HeadSHA, err)
+		log.WithError(err).Fatal("parsing github URL")
+	}
+	authURL := url.URL{
+		Scheme: cloneURL.Scheme,
+		User:   url.UserPassword("dummy", req.Token),
+		Host:   cloneURL.Host,
 	}
 
-	changedDirs, err := gh.GetChangedDirectories(r, req.HeadSHA, req.BaseSHA)
+	credFile := path.Join(tmpDir, "git-credentials")
+	err = ioutil.WriteFile(credFile, []byte(authURL.String()), 0600)
+	if err != nil {
+		log.WithError(err).Fatal("writing credentials file")
+	}
+
+	config := fmt.Sprintf("credential.helper=store --file=%s", credFile)
+	srcDir := path.Join(tmpDir, "src")
+	git.MustRun(tmpDir, "clone",
+		"--branch", headRef,
+		"--config", config,
+		cloneURL.String(),
+		srcDir,
+	)
+
+	baseSHA := *pr.Base.SHA
+	changedDirs, err := git.GetChangedDirectories(srcDir, baseSHA)
 	if err != nil {
 		return fmt.Errorf("error identifying changed top level directories: %v", err)
 	}
@@ -156,7 +219,7 @@ func deploy(req *model.DeploymentRequest) (err error) {
 	for _, dir := range changedDirs {
 		log.WithField("directory", dir).Info("Walking dir")
 		var contents []string
-		err = filesystem.Walk(w.Filesystem, dir, visit(&contents))
+		err = filepath.Walk(path.Join(srcDir, dir), visit(&contents))
 		if err != nil {
 			return fmt.Errorf("error walking filesystem %v", err)
 		}
@@ -175,20 +238,24 @@ func deploy(req *model.DeploymentRequest) (err error) {
 			succeeded[dir] = out
 		}
 	}
+
 	msg = fmt.Sprintf("deployment of %s succeeded", keys(succeeded))
 	comment := fmt.Sprintf("Deployment succeeded!\n%s", formatResults(succeeded))
 	err1 := update("success", msg, comment)
 	if err1 != nil {
 		return
 	}
+
 	_, _, err = client.PullRequests.Merge(ctx, req.Owner, req.Repo, int(req.Number), msg, nil)
 	if err != nil {
 		return
 	}
-	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", req.HeadRef))
+
+	_, err = client.Git.DeleteRef(ctx, req.Owner, req.Repo, fmt.Sprintf("heads/%s", headRef))
 	if err != nil {
 		return
 	}
+
 	return
 }
 
