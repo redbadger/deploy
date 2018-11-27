@@ -39,11 +39,14 @@ func createWebhookHandler(secret, token string) http.HandlerFunc {
 	hook, _ := github.New(github.Options.Secret(secret))
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		payload, err := hook.Parse(r, github.PullRequestEvent)
+		payload, err := hook.Parse(r, github.PullRequestEvent, github.PingEvent)
 		if err != nil {
-			if err == github.ErrEventNotFound {
-				http.Error(w, "only 'pull_request' events are supported", http.StatusNotAcceptable)
-			} else {
+			switch err {
+			case github.ErrEventNotFound:
+				http.Error(w, "only 'pull_request' events are supported", http.StatusUnprocessableEntity)
+			case github.ErrInvalidHTTPMethod:
+				http.Error(w, err.Error(), http.StatusMethodNotAllowed)
+			default:
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			}
 
@@ -72,8 +75,10 @@ func createWebhookHandler(secret, token string) http.HandlerFunc {
 			default:
 				myLog.Info("webhook ignored")
 			}
+		case github.PingPayload:
+			log.Info("ping received")
 		default:
-			log.Info("payload not supported")
+			log.Infof("payload (%v) not supported", pl)
 		}
 	}
 }
