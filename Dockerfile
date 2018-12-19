@@ -1,9 +1,13 @@
 #~~~~~~~~~~~~~~~~~~~~~~~
-FROM golang:1.10-alpine as builder
+FROM golang:1.10-alpine as base
 RUN apk --no-cache add \
+  ca-certificates \
   curl \
   git \
   ;
+
+#~~~~~~~~~~~~~~~~~~~~~~~
+FROM base as builder
 
 WORKDIR /go/src/github.com/redbadger/deploy
 COPY . .
@@ -15,11 +19,7 @@ RUN curl -L https://storage.googleapis.com/kubernetes-release/release/${KUBE_LAT
   && chmod +x /usr/local/bin/kubectl
 
 #~~~~~~~~~~~~~~~~~~~~~~~
-FROM alpine:latest
-RUN apk --no-cache add \
-  ca-certificates \
-  curl \
-  ;
+FROM base as release
 
 WORKDIR /root/
 COPY --from=builder /usr/local/bin/kubectl /usr/local/bin
