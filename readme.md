@@ -1,3 +1,5 @@
+# DEPRECATED: Please use Argo-CD instead :-) https://github.com/argoproj/argo-cd
+
 # Deploy to Kubernetes through a Github Repo
 
 A cli command, written in Go, that runs in Kubernetes as an agent (`deploy agent`) or raises a pull request against the cluster repo to request a deployment (`deploy request`).
